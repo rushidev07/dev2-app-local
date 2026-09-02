@@ -1,0 +1,14 @@
+<?php
+    /** @var Klevu\FrontendJs\Block\Html\Head\JsApiKeys $block */
+    $isHomePage = $block->getRequest()->getFullActionName() === 'cms_index_index';
+
+?>
+<script type="text/javascript" id="klevu_jsapikeys" defer>
+<?php if ($isHomePage): ?>
+    document.addEventListener('klevuLoaded', function() {
+        klevu(<?php /** @noEscape */ echo $block->getJsApiKeysSerialized(); ?>);
+    });
+<?php else: ?>
+    klevu(<?php /** @noEscape */ echo $block->getJsApiKeysSerialized(); ?>);
+<?php endif?> 
+</script>

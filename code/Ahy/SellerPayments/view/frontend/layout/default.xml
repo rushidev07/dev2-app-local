@@ -1,0 +1,8 @@
+<?xml version="1.0"?>
+<page xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="urn:magento:framework:View/Layout/etc/page_configuration.xsd">
+    <body>
+        <referenceBlock name="layout2_seller_account_navigation">
+            <block class="Ahy\SellerPayments\Block\Link"  name="seller_payments_menu_link_layout2" template="Ahy_SellerPayments::layout2/account/navigation.phtml" />
+        </referenceBlock>
+    </body>
+</page>

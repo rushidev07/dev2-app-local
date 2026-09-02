@@ -1,0 +1,368 @@
+<?php
+declare(strict_types=1);
+
+use Hyva\Theme\Model\ViewModelRegistry;
+use Hyva\Theme\ViewModel\ProductPage;
+use Magento\Catalog\Model\Product;
+use Magento\Framework\Escaper;
+use Magento\Framework\View\Element\Template;
+
+/** @var Template $block */
+/** @var Escaper $escaper */
+/** @var ViewModelRegistry $viewModels */
+/** @var ProductPage $productViewModel */
+$productViewModel = $viewModels->require(ProductPage::class);
+
+/** @var Product $product */
+$product = $productViewModel->getProduct();
+
+// ── Seller info (Webkul) — used for "Sold By" display only ───────────────────
+$_helper  = $this->helper('Webkul\Marketplace\Helper\data');
+$seller   = $_helper->getSellerProductDataByProductId($product->getId());
+$shopTitle = '';
+if (isset($seller->getData()[0]) && $seller->getData()[0]) {
+    $sellerObj    = $seller->getData()[0];
+    $sellerDataObj = $_helper->getSellerDataBySellerId($sellerObj['seller_id']);
+    $sellerData   = $sellerDataObj->getData()[0];
+    $shopTitle    = ($sellerData['shop_title'] ?? '') ?: ($sellerData['name'] ?? '');
+    $shopTitle    = trim($shopTitle);
+}
+if (!$shopTitle) return;
+
+// ── Resolve product brand → category fallback ─────────────────────────────────
+$brand = '';
+foreach (['product_brand', 'manufacturer'] as $attr) {
+    try {
+        $val = $product->getAttributeText($attr) ?: $product->getData($attr);
+        if ($val && is_string($val) && trim($val) !== '') { $brand = trim($val); break; }
+    } catch (\Throwable) {}
+}
+$categoryName = '';
+if ($brand === '') {
+    try {
+        foreach ($product->getCategoryCollection()->addAttributeToSelect('name')->addIsActiveFilter()->setPageSize(1) as $cat) {
+            $categoryName = (string) $cat->getName(); break;
+        }
+    } catch (\Throwable) {}
+}
+
+// ── Platform collection API call ──────────────────────────────────────────────
+$ssHelper     = $this->helper('Ahy\SmartSearch\Helper\Data');
+$apiKey       = $ssHelper->getApiKey();
+$endpointUrl  = $ssHelper->getEndpointUrl();
+$platformBase = rtrim(preg_replace('#/api/v1/ingest/products.*#', '', $endpointUrl), '/') ?: 'http://host.docker.internal:8080';
+
+$qp = ['api_key' => $apiKey, 'limit' => 13, 'sort' => 'popularity'];
+if ($brand !== '')        $qp['brand']    = $brand;
+elseif ($categoryName !== '') $qp['category'] = $categoryName;
+else return; // nothing to filter on
+
+$ch = curl_init($platformBase . '/api/v1/products/collection?' . http_build_query($qp));
+curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 5, CURLOPT_CONNECTTIMEOUT => 3]);
+$raw  = curl_exec($ch);
+$code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+curl_close($ch);
+
+$sliderProducts = [];
+if ($code === 200 && $raw) {
+    $decoded = json_decode($raw, true);
+    $sliderProducts = $decoded['products'] ?? [];
+}
+
+// Exclude current product; need ≥2 to show slider
+$currentId = (string) $product->getId();
+$sliderProducts = array_values(array_filter($sliderProducts, fn($p) => (string)($p['id'] ?? '') !== $currentId));
+if (count($sliderProducts) < 2) return;
+
+// Magento media base URL for fallback image path resolution
+$mediaBase = rtrim($block->getBaseUrl(), '/') . '/media/catalog/product';
+
+$sliderId = 'msi_' . $product->getId(); // unique per PDP
+?>
+
+<?php /* ── Styles (pixel-perfect match to original Klevu slider) ── */ ?>
+<style>
+    #<?= $sliderId ?> { position: relative; }
+
+    /* Title */
+    #<?= $sliderId ?> .msi-title {
+        display: block; line-height: 1; font-size: 2rem; font-weight: 800;
+        overflow: visible; white-space: pre-wrap; text-overflow: ellipsis;
+        color: #0d2f47; text-transform: uppercase; padding: 24px 0;
+    }
+    @media (max-width: 500px) { #<?= $sliderId ?> .msi-title { font-size: 1.5rem; } }
+
+    /* Hide native browser scrollbar — Swiper provides its own */
+    #<?= $sliderId ?> .swiper { overflow: hidden; }
+
+    /* Swiper overrides — match original Klevu swiper-scrollbar */
+    #<?= $sliderId ?> .swiper-scrollbar.swiper-scrollbar-horizontal {
+        height: 10px !important; width: 100% !important; left: 0 !important;
+        background: #d1d5db; border-radius: 9999px;
+    }
+    #<?= $sliderId ?> .swiper-scrollbar-drag { background: #1e3a5f !important; border-radius: 9999px; }
+    #<?= $sliderId ?> .swiper-wrapper { padding-bottom: 32px; }
+
+    /* Responsive slide widths: 1 → 2 → 3 → 4 */
+    #<?= $sliderId ?> .swiper-slide { margin: 0; vertical-align: top; }
+    @media (max-width: 639px)                          { #<?= $sliderId ?> .swiper-slide { width: 100%; } }
+    @media (min-width: 640px)  and (max-width: 1023px) { #<?= $sliderId ?> .swiper-slide { width: 50%; } }
+    @media (min-width: 1024px) and (max-width: 1279px) { #<?= $sliderId ?> .swiper-slide { width: 33.33%; } }
+    @media (min-width: 1280px)                         { #<?= $sliderId ?> .swiper-slide { width: 25%; } }
+
+    /* Card inner — matches .kuRECS-item */
+    #<?= $sliderId ?> .msi-card { margin: 0 auto; padding: 12px; background: #fff; }
+
+    /* Image area — matches .kuRECS-itemImg */
+    #<?= $sliderId ?> .msi-img-wrap {
+        display: flex; justify-content: center; align-items: center;
+        flex-direction: column; width: 100%; height: 210px; position: relative;
+    }
+    #<?= $sliderId ?> .msi-img-wrap a { display: block; width: 100%; height: 100%; }
+    #<?= $sliderId ?> .msi-img-wrap img.prodImg {
+        max-width: 100%; height: auto; width: auto; max-height: 100%;
+        display: block; margin: 0 auto; object-fit: contain;
+    }
+
+    /* Bookmark button */
+    #<?= $sliderId ?> .msi-bookmark {
+        position: absolute; top: 10px; right: 10px; width: 36px; height: 36px;
+        border-radius: 9999px; background: #fff; border: none; cursor: pointer;
+        display: flex; align-items: center; justify-content: center;
+        box-shadow: 0 4px 6px -1px rgb(0 0 0/.1), 0 2px 4px -2px rgb(0 0 0/.1);
+        ring: 1px solid #d1d5db;
+    }
+
+    /* Detail area — matches .ku-product-detail-padding */
+    #<?= $sliderId ?> .msi-detail { padding: 24px 24px 0; }
+    @media (max-width: 470px)   { #<?= $sliderId ?> .msi-detail { padding: 24px 0 0; } }
+
+    /* Product name — matches .kuRECSTitle */
+    #<?= $sliderId ?> .msi-name {
+        font-size: 16px; font-weight: 700; text-decoration: none;
+        overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical; color: #0d2f47;
+        line-height: 1.21rem; max-height: 2.42rem;
+    }
+
+    /* Sold by */
+    #<?= $sliderId ?> .msi-soldby { font-size: 0.75rem; font-weight: 500; line-height: 1rem; height: 1rem; overflow: hidden; }
+    #<?= $sliderId ?> .msi-soldby span { color: #0d2f47; }
+
+    /* Price block — matches .kuPrice / .kuSalePrice */
+    #<?= $sliderId ?> .msi-price-wrap { min-height: 5.5rem; overflow: visible; }
+    #<?= $sliderId ?> .msi-from { font-size: 0.875rem; font-weight: 700; color: #dc2626; text-transform: capitalize; }
+    #<?= $sliderId ?> .msi-price { font-size: 1.5rem; font-weight: 800; color: #0d2f47; }
+
+    /* CTA button — matches .kuBtnDark / .kuLandingAddToCartBtn */
+    #<?= $sliderId ?> .msi-btn {
+        display: flex; justify-content: center; align-items: center; width: 100%;
+        border-radius: 9999px; background: transparent; color: #0d2f47;
+        font-size: 0.875rem; font-weight: 700; padding: 6px 10px;
+        border: 2px solid #0d2f47; text-decoration: none; text-transform: capitalize;
+        transition: box-shadow 0.15s;
+    }
+    #<?= $sliderId ?> .msi-btn:hover { box-shadow: #0d2f47 0 0 0 1px inset; }
+
+    /* Bottom action row */
+    #<?= $sliderId ?> .msi-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; align-items: center; min-height: 55px; }
+    @media (max-width: 470px) { #<?= $sliderId ?> .msi-detail { padding: 24px 0 0; } }
+</style>
+
+<section id="<?= $sliderId ?>" class="more-seller-items relative py-8">
+
+    <div class="kuRECSHeader">
+        <h3 class="msi-title">MORE SELLER ITEMS</h3>
+    </div>
+
+    <div class="swiper <?= $sliderId ?>-swiper">
+        <div class="swiper-wrapper">
+
+            <?php
+            $klevuBase    = 'https://static.everest.com/media/klevu_images/1200X1200';
+            $klevuImgUrl  = static function (string $image) use ($klevuBase): string {
+                if ($image === '') return '';
+                if (str_contains($image, 'klevu_images')) return $image;
+                if (str_starts_with($image, 'http')) {
+                    if (preg_match('/\/catalog\/product\/(.+)$/', $image, $m)) {
+                        return $klevuBase . '/' . preg_replace('/\.(jpg|jpeg)$/i', '.webp', $m[1]);
+                    }
+                    return $image;
+                }
+                return $klevuBase . preg_replace('/\.(jpg|jpeg)$/i', '.webp', $image);
+            };
+            $cfgProducts  = [];
+            foreach ($sliderProducts as $p):
+                $name         = html_entity_decode($p['name'] ?? '', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+                $rawImg       = $p['image'] ?? '';
+                $imgKlevu     = $klevuImgUrl($rawImg);
+                $imgKlevuEsc  = $escaper->escapeUrl($imgKlevu);
+                $imgSrcEsc    = $escaper->escapeUrl($rawImg);
+                $price        = isset($p['price'])         ? (float)$p['price']         : null;
+                $specialPrice = isset($p['special_price']) ? (float)$p['special_price'] : null;
+                $urlKey       = $p['url_key'] ?? '';
+                $productUrl   = $urlKey !== '' ? $block->getBaseUrl() . $urlKey . '.html' : '#';
+                $pId          = (string)($p['id'] ?? $p['product_id'] ?? '');
+                $type         = $p['type'] ?? 'simple';
+                $isCfg        = ($type === 'configurable');
+                $inStock      = (bool)($p['in_stock'] ?? true);
+                $displayPrice = ($specialPrice && $price && $specialPrice < $price) ? $specialPrice : $price;
+                if ($isCfg && $inStock) $cfgProducts[] = $p;
+            ?>
+            <div class="kuRECSItem border border-ahy-bg swiper-slide">
+                <div class="msi-card kuRECS-item">
+
+                    <!-- Image -->
+                    <div class="msi-img-wrap kuRECS-itemImg">
+                        <a href="<?= $escaper->escapeUrl($productUrl) ?>"
+                           title="<?= $escaper->escapeHtmlAttr($name) ?>"
+                           class="kuRECSItemClick kuRECSImg">
+                            <?php if ($rawImg): ?>
+                                <img
+                                    src="<?= $imgKlevuEsc ?: $imgSrcEsc ?>"
+                                    data-original-src="<?= $imgSrcEsc ?>"
+                                    alt="<?= $escaper->escapeHtmlAttr($name) ?>"
+                                    class="prodImg"
+                                    loading="lazy"
+                                    onerror="if(this.dataset.fb){return;}this.dataset.fb='1';this.onerror=null;this.src='/media/logo/default/everest-logo-fallback.png';this.style.opacity='0.45';"
+                                >
+                            <?php else: ?>
+                                <img
+                                    src="/media/logo/default/everest-logo-fallback.png"
+                                    alt="<?= $escaper->escapeHtmlAttr($name) ?>"
+                                    class="prodImg"
+                                    loading="lazy"
+                                    style="opacity:0.45"
+                                >
+                            <?php endif; ?>
+                        </a>
+
+                        <!-- Bookmark (Wishlist) -->
+                        <button
+                            x-data="initWishlist()"
+                            @click.prevent="addToWishlist('<?= $escaper->escapeJs($pId) ?>')"
+                            aria-label="Add to Wish List"
+                            type="button"
+                            class="msi-bookmark hidden md:flex"
+                        >
+                            <svg class="w-5 h-5" data-name="Layer 1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 15.91 20">
+                                <path style="fill:#0d2f47;" d="M14.41,1.5v16L9.27,12.71a1.62,1.62,0,0,0-2.19,0L1.5,17.58V1.5H14.41M14.76,0H1.15A1.16,1.16,0,0,0,0,1.15v18.1a.74.74,0,0,0,1.24.56l6.83-6a.12.12,0,0,1,.18,0l6.38,5.9a.74.74,0,0,0,.52.21.76.76,0,0,0,.76-.77v-18A1.15,1.15,0,0,0,14.76,0Z"/>
+                            </svg>
+                        </button>
+                    </div><!-- /.msi-img-wrap -->
+
+                    <!-- Detail -->
+                    <div class="msi-detail ku-product-detail-padding">
+
+                        <!-- Name + Sold By -->
+                        <div class="kuRECS-itemDesc" style="margin-top:12px;overflow:hidden;">
+                            <a href="<?= $escaper->escapeUrl($productUrl) ?>"
+                               title="<?= $escaper->escapeHtmlAttr($name) ?>"
+                               class="msi-name kuRECSTitle klevuProductClick" style="min-height: 39px;">
+                                <?= $escaper->escapeHtml($name) ?>
+                            </a>
+                            <div class="msi-soldby">
+                                sold by <span><?= $escaper->escapeHtml($shopTitle) ?></span>
+                            </div>
+
+                            <!-- Price -->
+                            <div class="kuRECS-itemPrice" style="font-size:12px;color:#545454;margin:4px 0;">
+                                <div class="msi-price-wrap kuPrice">
+                                    <div class="kuSalePrice kuStartPrice flex" style="font-size:1.5rem;align-items:baseline;gap:4px;">
+                                        <?php if ($isCfg): ?>
+                                            <div class="msi-from">from</div>
+                                        <?php endif; ?>
+                                        <?php if ($displayPrice): ?>
+                                            <span class="msi-price">
+                                                $<?= number_format($displayPrice, 2) ?>
+                                            </span>
+                                        <?php endif; ?>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- CTA -->
+                        <div class="msi-actions">
+                            <div><!-- shipping label placeholder --></div>
+                            <div class="kuRECSItemBottom">
+                                <?php if ($inStock && $isCfg): ?>
+                                    <button type="button" class="msi-btn kuBtnDark kuLandingAddToCartBtn"
+                                            onclick="ahySliderOpenModal(this)"
+                                            data-cfg-pid="<?= $escaper->escapeHtmlAttr($pId) ?>"
+                                            data-slider-id="<?= $escaper->escapeHtmlAttr($sliderId) ?>">
+                                        <span class="px-2">options</span>
+                                    </button>
+                                <?php elseif ($inStock): ?>
+                                    <a href="<?= $escaper->escapeUrl($productUrl) ?>" class="msi-btn kuBtnDark kuLandingAddToCartBtn">
+                                        <svg class="w-5 h-5" data-name="Layer 1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 30.61 25.71">
+                                            <polyline style="fill:none;stroke:#0d2f47;stroke-linecap:round;stroke-linejoin:round;stroke-width:2.5;" points="0.75 0.75 5.51 0.75 10.82 15.88 25.24 15.88 29.86 3.3 10.84 3.3"></polyline>
+                                            <circle style="fill:none;stroke:#0d2f47;stroke-miterlimit:10;stroke-width:2.5;" cx="11.98" cy="22.46" r="2.5"></circle>
+                                            <circle style="fill:none;stroke:#0d2f47;stroke-miterlimit:10;stroke-width:2.5;" cx="24.48" cy="22.46" r="2.5"></circle>
+                                        </svg>
+                                        <span class="px-2">add</span>
+                                    </a>
+                                <?php else: ?>
+                                    <a href="<?= $escaper->escapeUrl($productUrl) ?>" class="msi-btn kuBtnDark">
+                                        <span class="px-2">details</span>
+                                    </a>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+
+                    </div><!-- /.msi-detail -->
+
+                </div><!-- /.msi-card -->
+            </div><!-- /.swiper-slide -->
+            <?php endforeach; ?>
+
+        </div><!-- /.swiper-wrapper -->
+        <div class="swiper-scrollbar"></div>
+    </div><!-- /.swiper -->
+
+</section>
+
+<script>
+(function() {
+    function initMSI() {
+        if (typeof Swiper === 'undefined') {
+            setTimeout(initMSI, 100);
+            return;
+        }
+        new Swiper('.<?= $sliderId ?>-swiper', {
+            slidesPerView: 'auto',
+            spaceBetween: 0,
+            freeMode: true,
+            grabCursor: true,
+            scrollbar: {
+                el: '.<?= $sliderId ?>-swiper .swiper-scrollbar',
+                draggable: true,
+                snapOnRelease: false,
+            },
+            mousewheel: false,
+            keyboard: { enabled: true },
+        });
+    }
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initMSI);
+    } else {
+        initMSI();
+    }
+})();
+
+window.__ahySliderCfg = window.__ahySliderCfg || {};
+window.__ahySliderCfg['<?= $sliderId ?>'] = <?= json_encode(array_values($cfgProducts), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+
+if (typeof ahySliderOpenModal === 'undefined') {
+    function ahySliderOpenModal(btn) {
+        var pid = parseInt(btn.getAttribute('data-cfg-pid'), 10);
+        var sid = btn.getAttribute('data-slider-id');
+        var list = (window.__ahySliderCfg && window.__ahySliderCfg[sid]) || [];
+        var product = list.find(function(p) {
+            return parseInt(p.product_id || p.id, 10) === pid;
+        });
+        if (!product) return;
+        window.dispatchEvent(new CustomEvent('ahy-open-config-modal', { detail: product }));
+    }
+}
+</script>

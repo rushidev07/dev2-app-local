@@ -1,0 +1,35 @@
+<?php
+/**
+ * Emits the current product-card style config as CSS custom properties, once
+ * per page. Cards/grids elsewhere reference var(--ahy-card-*) instead of each
+ * computing and duplicating these values. Safe to place near the end of body:
+ * every product card on this site is rendered client-side by Alpine (x-for)
+ * after the full page — including this block — has already loaded, so there
+ * is no flash of unstyled content.
+ */
+$productCardRadius = (int) $block->getStyleValue('product_card', 'corner_radius', '0');
+$productCardBorderShadow = $block->getStyleValue('product_card', 'border_shadow_style', 'none');
+$productCardSpacing = (int) $block->getStyleValue('product_card', 'card_spacing', '2');
+$productCardColumns = (int) $block->getStyleValue('product_card', 'columns_per_row', '3');
+if ($productCardColumns < 1) {
+    $productCardColumns = 3;
+}
+
+$borderCss = in_array($productCardBorderShadow, ['border', 'both'], true)
+    ? '1px solid #e5e7eb'
+    : 'none';
+$shadowCss = in_array($productCardBorderShadow, ['shadow', 'both'], true)
+    ? '0 1px 3px rgba(0,0,0,0.1), 0 1px 2px rgba(0,0,0,0.06)'
+    : 'none';
+?>
+<style>
+    :root {
+        --ahy-card-radius: <?= $productCardRadius ?>px;
+        --ahy-card-border: <?= $borderCss ?>;
+        --ahy-card-shadow: <?= $shadowCss ?>;
+        --ahy-grid-gap: <?= $productCardSpacing ?>px;
+    }
+    @media (min-width: 1280px) {
+        .ahy-product-grid { grid-template-columns: repeat(<?= $productCardColumns ?>, minmax(0, 1fr)); }
+    }
+</style>

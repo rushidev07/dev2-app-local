@@ -1,0 +1,17 @@
+{
+    "name": "ahy/module-seller-payments",
+    "description": "Custom module to handle seller payments and integrate with Webkul Marketplace",
+    "type": "magento2-module",
+    "version": "1.0.0",
+    "license": [
+        "MIT"
+    ],
+    "autoload": {
+        "files": [
+            "registration.php"
+        ],
+        "psr-4": {
+            "Ahy\\SellerPayments\\": ""
+        }
+    }
+}

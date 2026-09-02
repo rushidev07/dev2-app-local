@@ -1,0 +1,76 @@
+<?php
+declare(strict_types=1);
+
+namespace FalcoSense\Search\Block;
+
+use Magento\Framework\View\Element\Template;
+use Magento\Framework\View\Element\Template\Context;
+use FalcoSense\Search\Helper\Data as SmartSearchHelper;
+use FalcoSense\Search\Service\SearchTokenService;
+
+/**
+ * Renders a curated, catalog-wide product grid (e.g. "New Arrivals",
+ * "Popular Products") backed by the platform's GET /api/v1/products/collection
+ * endpoint — sorted by ranking_signals.popularity_score/trending_score or by
+ * meta.indexed_at ("newest"), with no category/brand/attribute filter applied.
+ *
+ * heading and sort are set per-page via the block's layout XML arguments.
+ */
+class Collection extends Template
+{
+    private SmartSearchHelper  $helper;
+    private SearchTokenService $tokenService;
+
+    public function __construct(
+        Context            $context,
+        SmartSearchHelper  $helper,
+        SearchTokenService $tokenService,
+        array              $data = []
+    ) {
+        parent::__construct($context, $data);
+        $this->helper       = $helper;
+        $this->tokenService = $tokenService;
+    }
+
+    public function getSearchToken(int $magentoStoreId = 0): string
+    {
+        return $this->tokenService->getToken($magentoStoreId);
+    }
+
+    public function getCollectionApiUrl(): string
+    {
+        $endpoint = $this->helper->getEndpointUrl();
+        if (!$endpoint) {
+            return 'http://localhost:8080/api/v1/products/collection';
+        }
+        $parts = parse_url($endpoint);
+        $base  = ($parts['scheme'] ?? 'http') . '://' . ($parts['host'] ?? 'localhost');
+        if (!empty($parts['port'])) {
+            $base .= ':' . $parts['port'];
+        }
+        return $base . '/api/v1/products/collection';
+    }
+
+    public function getPlatformStoreId(): int
+    {
+        return $this->helper->getPlatformStoreId();
+    }
+
+    /** One of: popularity | trending | newest — see block's layout XML argument. */
+    public function getSort(): string
+    {
+        $sort = (string) $this->getData('sort');
+        return in_array($sort, ['popularity', 'trending', 'newest'], true) ? $sort : 'popularity';
+    }
+
+    public function getHeading(): string
+    {
+        return (string) ($this->getData('heading') ?: 'Products');
+    }
+
+    /** Hero banner background image — same design the old landing pages used. */
+    public function getBannerImage(): string
+    {
+        return (string) $this->getData('banner_image');
+    }
+}

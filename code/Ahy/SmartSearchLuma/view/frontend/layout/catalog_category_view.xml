@@ -1,0 +1,35 @@
+<?xml version="1.0"?>
+<page xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:noNamespaceSchemaLocation="urn:magento:framework:View/Layout/etc/page_configuration.xsd">
+    <body>
+        <referenceContainer name="content">
+            <block class="Ahy\SmartSearchLuma\Block\Category"
+                   name="ahy_smartsearchluma_category"
+                   template="Ahy_SmartSearchLuma::category/results.phtml"
+                   ifconfig="smart_search/general/frontend_enabled"
+                   before="-">
+                <block class="Magento\Framework\View\Element\Template"
+                       name="ahy_card_template"
+                       template="Ahy_SmartSearchLuma::category/product_card.phtml"/>
+                <block class="Magento\Framework\View\Element\Template"
+                       name="ahy_options_template"
+                       template="Ahy_SmartSearchLuma::category/product_options.phtml"/>
+            </block>
+        </referenceContainer>
+
+        <!--
+            Single-source SSR grid. Additive: renders right after the native
+            product list (which CategoryListPlugin empties out when this is
+            active) and renders nothing at all when the platform has no usable
+            data. Gated on the raw flag; the block itself re-checks the full
+            condition via PlpContextProvider.
+        -->
+        <referenceContainer name="content">
+            <block class="Ahy\SmartSearchLuma\Block\Plp\Grid"
+                   name="ahy_plp_ssr_grid"
+                   template="Ahy_SmartSearchLuma::plp/grid.phtml"
+                   ifconfig="smart_search/plp/ssr_enabled"
+                   after="category.products"/>
+        </referenceContainer>
+    </body>
+</page>

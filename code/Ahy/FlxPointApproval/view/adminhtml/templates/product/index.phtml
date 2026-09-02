@@ -1,0 +1,166 @@
+<?php
+/** @var \Ahy\FlxPointApproval\Block\Adminhtml\Product\Index $block */
+$products      = $block->getProducts();
+$counts        = $block->getStatusCounts();
+$currentStatus = $block->getCurrentStatus();
+$currentSearch = $block->getCurrentSearch();
+$lastPage      = $products->getLastPageNumber();
+$currentPage   = $products->getCurPage();
+$totalCount    = $products->getSize();
+?>
+<div class="flxp-wrap">
+
+    <!-- Toolbar -->
+    <div class="flxp-toolbar">
+        <form method="get" action="<?= $block->escapeUrl($block->getUrl('*/*/index')) ?>" style="display:flex;gap:10px;flex:1;flex-wrap:wrap">
+            <div class="flxp-search">
+                <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                <input type="text" name="q" placeholder="Search by name, SKU…" value="<?= $block->escapeHtmlAttr($currentSearch) ?>">
+                <input type="hidden" name="status" value="<?= $block->escapeHtmlAttr($currentStatus) ?>">
+            </div>
+            <button type="submit" style="padding:8px 16px;border:1px solid #d6d6d6;border-radius:6px;background:#514f6e;color:#fff;cursor:pointer;font-size:13px">Search</button>
+            <?php if ($currentSearch): ?>
+                <a href="<?= $block->escapeUrl($block->getUrl('*/*/index', ['status' => $currentStatus])) ?>" style="padding:8px 16px;border:1px solid #d6d6d6;border-radius:6px;background:#fff;color:#555;text-decoration:none;font-size:13px">Clear</a>
+            <?php endif; ?>
+        </form>
+    </div>
+
+    <!-- Status Tabs -->
+    <div class="flxp-tabs">
+        <?php
+        $tabs = [
+            'all'      => 'All',
+            'pending'  => 'Pending',
+            'approved' => 'Approved',
+            'rejected' => 'Rejected',
+        ];
+        foreach ($tabs as $key => $label):
+            $activeClass = ($currentStatus === $key) ? 'active-' . $key : '';
+        ?>
+            <a href="<?= $block->escapeUrl($block->getUrl('*/*/index', ['status' => $key, 'q' => $currentSearch])) ?>"
+               class="flxp-tab <?= $activeClass ?>">
+                <?= $block->escapeHtml($label) ?>
+                <span class="flxp-tab-count"><?= (int)($counts[$key] ?? 0) ?></span>
+            </a>
+        <?php endforeach; ?>
+    </div>
+
+    <!-- Grid -->
+    <div class="flxp-table-wrap">
+        <?php if ($products->getSize() > 0): ?>
+        <table class="flxp-table">
+            <thead>
+                <tr>
+                    <th style="width:68px">Image</th>
+                    <th>Product</th>
+                    <th>SKU</th>
+                    <th>Type</th>
+                    <th>Price</th>
+                    <th>Stock</th>
+                    <th>Status</th>
+                    <th>Staged</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php foreach ($products as $product): ?>
+                    <?php
+                    $imageSrc    = $block->getImageUrl((string)$product->getData('image_path'), (string)$product->getData('base_image_url'));
+                    $isConfig    = $product->getData('product_type') === 'configurable';
+                    $hasSpecial  = $product->getData('special_price') > 0;
+                    $status      = $product->getData('status');
+                    $inStock     = (int)$product->getData('is_in_stock');
+                    $viewUrl     = $block->getViewUrl((int)$product->getId());
+                    ?>
+                    <tr onclick="window.location='<?= $block->escapeUrl($viewUrl) ?>'">
+                        <td>
+                            <?php if ($imageSrc): ?>
+                                <img src="<?= $block->escapeUrl($imageSrc) ?>"
+                                     alt="<?= $block->escapeHtmlAttr($product->getData('name')) ?>"
+                                     class="flxp-thumb"
+                                     onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+                                <div class="flxp-thumb-placeholder" style="display:none">📦</div>
+                            <?php else: ?>
+                                <div class="flxp-thumb-placeholder">📦</div>
+                            <?php endif; ?>
+                        </td>
+                        <td>
+                            <div class="flxp-product-name"><?= $block->escapeHtml($product->getData('name')) ?></div>
+                            <div class="flxp-product-meta">
+                                #<?= (int)$product->getId() ?>
+                                <?php if ($product->getData('product_brand')): ?>
+                                    &middot; <?= $block->escapeHtml($product->getData('product_brand')) ?>
+                                <?php endif; ?>
+                                <?php if ($isConfig): ?>
+                                    &middot; <?= count(array_filter(explode(' | ', (string)$product->getData('configurable_variations')))) ?> variants
+                                <?php endif; ?>
+                            </div>
+                        </td>
+                        <td style="font-family:monospace;font-size:12px;color:#555"><?= $block->escapeHtml($product->getData('sku')) ?></td>
+                        <td>
+                            <span class="flxp-badge flxp-badge-<?= $isConfig ? 'configurable' : 'simple' ?>">
+                                <?= $isConfig ? 'Configurable' : 'Simple' ?>
+                            </span>
+                        </td>
+                        <td class="flxp-price">
+                            <?php if ($hasSpecial): ?>
+                                <span class="flxp-price-special">$<?= number_format((float)$product->getData('special_price'), 2) ?></span>
+                                <span class="flxp-price-original">$<?= number_format((float)$product->getData('price'), 2) ?></span>
+                            <?php else: ?>
+                                $<?= number_format((float)$product->getData('price'), 2) ?>
+                            <?php endif; ?>
+                        </td>
+                        <td>
+                            <span class="flxp-badge <?= $inStock ? 'flxp-badge-instock' : 'flxp-badge-outofstock' ?>">
+                                <?= $inStock ? 'In Stock' : 'Out of Stock' ?>
+                            </span>
+                            <div style="font-size:11px;color:#888;margin-top:3px">Qty: <?= (int)$product->getData('qty') ?></div>
+                        </td>
+                        <td>
+                            <span class="flxp-badge flxp-badge-<?= $block->escapeHtml($status) ?>">
+                                <?= ucfirst($block->escapeHtml($status)) ?>
+                            </span>
+                            <?php if ($status === 'rejected' && $product->getData('rejection_reason')): ?>
+                                <div style="font-size:11px;color:#888;margin-top:3px" title="<?= $block->escapeHtmlAttr($product->getData('rejection_reason')) ?>">
+                                    <?= $block->escapeHtml(mb_strimwidth((string)$product->getData('rejection_reason'), 0, 30, '…')) ?>
+                                </div>
+                            <?php endif; ?>
+                        </td>
+                        <td style="white-space:nowrap;font-size:12px;color:#888">
+                            <?= $block->escapeHtml(date('M j, Y', strtotime((string)$product->getData('created_at')))) ?>
+                        </td>
+                    </tr>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
+
+        <!-- Pager -->
+        <?php if ($lastPage > 1): ?>
+        <div class="flxp-pager">
+            <div class="flxp-pager-info">
+                Showing <?= (($currentPage - 1) * 20) + 1 ?>–<?= min($currentPage * 20, $totalCount) ?> of <?= $totalCount ?> products
+            </div>
+            <div class="flxp-pager-links">
+                <?php if ($currentPage > 1): ?>
+                    <a href="<?= $block->escapeUrl($block->getPagerUrl(['p' => $currentPage - 1])) ?>" class="flxp-pager-btn">← Prev</a>
+                <?php endif; ?>
+                <?php for ($i = max(1, $currentPage - 2); $i <= min($lastPage, $currentPage + 2); $i++): ?>
+                    <a href="<?= $block->escapeUrl($block->getPagerUrl(['p' => $i])) ?>"
+                       class="flxp-pager-btn <?= $i === $currentPage ? 'current' : '' ?>"><?= $i ?></a>
+                <?php endfor; ?>
+                <?php if ($currentPage < $lastPage): ?>
+                    <a href="<?= $block->escapeUrl($block->getPagerUrl(['p' => $currentPage + 1])) ?>" class="flxp-pager-btn">Next →</a>
+                <?php endif; ?>
+            </div>
+        </div>
+        <?php endif; ?>
+
+        <?php else: ?>
+        <div class="flxp-empty">
+            <div class="flxp-empty-icon">📋</div>
+            <h3>No <?= $block->escapeHtml($currentStatus === 'all' ? '' : $currentStatus) ?> products</h3>
+            <p>Products staged for approval will appear here.</p>
+        </div>
+        <?php endif; ?>
+    </div>
+
+</div>

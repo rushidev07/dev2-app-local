@@ -1,0 +1,142 @@
+<?php
+$payments = $block->getSellerPayments();
+?>
+
+<h1><?= __('Seller Payment Methods') ?></h1>
+
+<?php if (count($payments) > 0): ?>
+    <div id="payment-cards-container">
+        <?php foreach ($payments as $payment): ?>
+            <div class="payment-card"
+                data-id="<?= $payment->getId() ?>"
+                data-bankname="<?= $block->escapeHtmlAttr($payment->getBankName()) ?>"
+                data-accountnumber="<?= $block->escapeHtmlAttr($payment->getAccountNumber()) ?>"
+                data-routingnumber="<?= $block->escapeHtmlAttr($payment->getRoutingNumber()) ?>"
+            >
+                <p><strong>Bank Name:</strong> <?= $block->escapeHtml($payment->getBankName()) ?></p>
+                <p><strong>Account Number:</strong> <?= $block->escapeHtml($payment->getAccountNumber()) ?></p>
+                <p><strong>Routing Number:</strong> <?= $block->escapeHtml($payment->getRoutingNumber()) ?></p>
+                <button class="edit-payment" data-id="<?= $payment->getId() ?>"><?= __('Edit') ?></button>
+                <button class="delete-payment" data-id="<?= $payment->getId() ?>"><?= __('Delete') ?></button>
+            </div>
+        <?php endforeach; ?>
+    </div>
+
+    <button id="add-new-payment"><?= __('Add New Payment Method') ?></button>
+<?php else: ?>
+    <p><?= __('No payment methods found. Add one below:') ?></p>
+<?php endif; ?>
+
+<form id="seller-payment-form" class="seller-payment-form" method="post" action="<?= $block->getUrl('sellerpayments/account/save') ?>" style="display: <?= count($payments) === 0 ? 'block' : 'none' ?>;">
+    <input type="hidden" name="id" id="payment-id" value="" />
+    <input name="form_key" type="hidden" value="<?= $block->getFormKey() ?>" />
+
+    <div class="payment-form-input">
+        <label for="bank_name"><?= __('Bank Name') ?></label>
+        <input type="text" id="bank_name" name="bank_name" required />
+    </div>
+
+    <div class="payment-form-input">
+        <label for="account_number"><?= __('Account Number') ?></label>
+        <input type="text" id="account_number" name="account_number" required />
+    </div>
+
+    <div class="payment-form-input">
+        <label for="routing_number"><?= __('Routing Number') ?></label>
+        <input type="text" id="routing_number" name="routing_number" required />
+    </div>
+
+    <button class="payments-form-submit" type="submit"><?= __('Save') ?></button>
+    <button class="payments-form-cancel" type="button" id="cancel-edit" style="display:none;"><?= __('Cancel') ?></button>
+</form>
+
+<style>
+.payment-card {
+    border: 1px solid #ccc;
+    padding: 10px;
+    margin-bottom: 15px;
+    width: 50%;
+    position: relative;
+}
+.payment-card button {
+    margin-right: 5px;
+}
+button.payments-form-submit {
+    margin-top: 10px;
+    background-color: #007dbd; 
+    color: white;
+}
+button.payments-form-cancel {
+    margin-top: 10px;
+    color: red;
+    background-color: transparent;
+}
+.seller-payment-form .payment-form-input {
+    margin-top: 10px;
+    display: flex;
+    flex-direction: column; 
+}
+.seller-payment-form div input {
+    width: 50%;
+}
+#add-new-payment {
+    margin-bottom: 20px;
+}
+</style>
+
+<script type="text/javascript">
+require(['jquery', 'mage/validation'], function($){
+    $('#seller-payment-form').mage('validation', {});
+
+    // Show form with empty fields to add new payment
+    $('#add-new-payment').on('click', function() {
+        $('.payment-card').hide();
+        $('#add-new-payment').hide();
+        $('#seller-payment-form').show();
+        clearForm();
+        $('#cancel-edit').show();
+    });
+
+    // Cancel button hides form and shows cards again
+    $('#cancel-edit').on('click', function() {
+        $('#seller-payment-form').hide();
+        $('.payment-card').show();
+        $('#add-new-payment').show();
+        $(this).hide();
+    });
+
+    $('.edit-payment').on('click', function() {
+        const paymentId = $(this).data('id');
+        const card = $('.payment-card[data-id="' + paymentId + '"]');
+
+        const bankName = card.data('bankname');
+        const accountNumber = card.data('accountnumber');
+        const routingNumber = card.data('routingnumber');
+
+        $('#payment-id').val(paymentId);
+        $('#bank_name').val(bankName);
+        $('#account_number').val(accountNumber);
+        $('#routing_number').val(routingNumber);
+
+        $('.payment-card').hide();
+        $('#add-new-payment').hide();
+        $('#seller-payment-form').show();
+        $('#cancel-edit').show();
+    });
+
+
+    $('.delete-payment').on('click', function() {
+        if (!confirm('Are you sure you want to delete this payment method?')) {
+            return;
+        }
+        const paymentId = $(this).data('id');
+        window.location.href = "<?= $block->getUrl('sellerpayments/account/delete') ?>" + 'id/' + paymentId;
+    });
+    function clearForm() {
+        $('#payment-id').val('');
+        $('#bank_name').val('');
+        $('#account_number').val('');
+        $('#routing_number').val('');
+    }
+});
+</script>

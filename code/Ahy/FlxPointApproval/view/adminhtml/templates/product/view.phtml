@@ -1,0 +1,297 @@
+<?php
+/** @var \Ahy\FlxPointApproval\Block\Adminhtml\Product\View $block */
+$product     = $block->getProduct();
+$isConfig    = $product->getData('product_type') === 'configurable';
+$variants    = $isConfig ? $block->getVariants((string)$product->getData('sku')) : [];
+$status      = $product->getData('status');
+$mainImg     = $block->getImageUrl((string)$product->getData('image_path'), (string)$product->getData('base_image_url'));
+$extraImages = $block->getAdditionalImages((string)$product->getData('additional_image_path'), (string)$product->getData('additional_images_url'));
+$hasSpecial  = $product->getData('special_price') > 0;
+$entityId    = (int)$product->getId();
+?>
+<div class="flxp-wrap">
+
+    <!-- Back button + title row -->
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:12px">
+        <a href="<?= $block->escapeUrl($block->getBackUrl()) ?>" class="flxp-back-btn">
+            ← Back to List
+        </a>
+        <?php if ($status === 'pending'): ?>
+        <div class="flxp-actions">
+            <button onclick="document.getElementById('flxp-approve-form').submit()" class="flxp-btn flxp-btn-approve">
+                ✓ Approve Product
+            </button>
+            <button onclick="document.getElementById('flxp-reject-modal').classList.add('open')" class="flxp-btn flxp-btn-reject">
+                ✕ Reject
+            </button>
+        </div>
+        <?php elseif ($status === 'approved'): ?>
+            <span class="flxp-badge flxp-badge-approved" style="font-size:14px;padding:8px 16px">✓ Approved</span>
+        <?php elseif ($status === 'rejected'): ?>
+            <span class="flxp-badge flxp-badge-rejected" style="font-size:14px;padding:8px 16px">✕ Rejected</span>
+        <?php endif; ?>
+    </div>
+
+    <!-- Hidden approve form -->
+    <form id="flxp-approve-form" method="post" action="<?= $block->escapeUrl($block->getUrl('ahy_flxpoint_approval/product/approve')) ?>">
+        <input type="hidden" name="id" value="<?= $entityId ?>">
+        <input type="hidden" name="form_key" value="<?= $block->escapeHtmlAttr($block->getFormKey()) ?>">
+    </form>
+
+    <div class="flxp-detail-grid">
+
+        <!-- Left: Image Panel -->
+        <div class="flxp-img-panel">
+            <?php if ($mainImg): ?>
+                <img id="flxp-main-img"
+                     src="<?= $block->escapeUrl($mainImg) ?>"
+                     alt="<?= $block->escapeHtmlAttr($product->getData('name')) ?>"
+                     class="flxp-main-img"
+                     onerror="this.parentElement.innerHTML='<div class=\'flxp-main-img-placeholder\'>📦</div>'">
+            <?php else: ?>
+                <div class="flxp-main-img-placeholder">📦</div>
+            <?php endif; ?>
+
+            <?php if ($extraImages): ?>
+            <div class="flxp-img-thumbs">
+                <?php if ($mainImg): ?>
+                <img src="<?= $block->escapeUrl($mainImg) ?>"
+                     class="flxp-img-thumb active"
+                     onclick="switchImg(this, '<?= $block->escapeUrl($mainImg) ?>')"
+                     alt="Main image">
+                <?php endif; ?>
+                <?php foreach ($extraImages as $extraImg): ?>
+                    <?php if ($extraImg): ?>
+                    <img src="<?= $block->escapeUrl($extraImg) ?>"
+                         class="flxp-img-thumb"
+                         onclick="switchImg(this, '<?= $block->escapeUrl($extraImg) ?>')"
+                         alt="Additional image"
+                         onerror="this.style.display='none'">
+                    <?php endif; ?>
+                <?php endforeach; ?>
+            </div>
+            <?php endif; ?>
+        </div>
+
+        <!-- Right: Info Panels -->
+        <div class="flxp-info-panel">
+
+            <!-- Product Title Card -->
+            <div class="flxp-card">
+                <div class="flxp-card-body">
+                    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap">
+                        <div>
+                            <h2 style="margin:0 0 6px;font-size:18px;color:#222"><?= $block->escapeHtml($product->getData('name')) ?></h2>
+                            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+                                <span class="flxp-badge flxp-badge-<?= $isConfig ? 'configurable' : 'simple' ?>">
+                                    <?= $isConfig ? 'Configurable' : 'Simple' ?>
+                                </span>
+                                <span class="flxp-badge flxp-badge-<?= $block->escapeHtml($status) ?>">
+                                    <?= ucfirst($block->escapeHtml($status)) ?>
+                                </span>
+                                <?php if ($product->getData('product_brand')): ?>
+                                <span style="font-size:12px;color:#777">by <?= $block->escapeHtml($product->getData('product_brand')) ?></span>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+                        <div style="text-align:right">
+                            <?php if ($hasSpecial): ?>
+                                <div class="flxp-price-special" style="font-size:22px">$<?= number_format((float)$product->getData('special_price'), 2) ?></div>
+                                <div class="flxp-price-original" style="font-size:14px">$<?= number_format((float)$product->getData('price'), 2) ?></div>
+                            <?php else: ?>
+                                <div class="flxp-price" style="font-size:22px">$<?= number_format((float)$product->getData('price'), 2) ?></div>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Key Details -->
+            <div class="flxp-card">
+                <div class="flxp-card-header">📋 Product Details</div>
+                <div class="flxp-card-body">
+                    <dl class="flxp-dl">
+                        <dt>SKU</dt>
+                        <dd><code style="background:#f5f5f5;padding:2px 6px;border-radius:3px"><?= $block->escapeHtml($product->getData('sku')) ?></code></dd>
+
+                        <dt>FlxPoint SKU</dt>
+                        <dd><code style="background:#f5f5f5;padding:2px 6px;border-radius:3px"><?= $block->escapeHtml($product->getData('flxpoint_sku')) ?></code></dd>
+
+                        <dt>Attribute Set</dt>
+                        <dd><?= $block->escapeHtml($product->getData('attribute_set_code')) ?></dd>
+
+                        <dt>Category</dt>
+                        <dd><?= $block->escapeHtml($product->getData('categories') ?: '—') ?></dd>
+
+                        <dt>Visibility</dt>
+                        <dd><?= $block->escapeHtml($product->getData('visibility') ?: '—') ?></dd>
+
+                        <dt>Weight</dt>
+                        <dd><?= $product->getData('weight') ? $block->escapeHtml($product->getData('weight')) . ' lbs' : '—' ?></dd>
+
+                        <dt>Seller ID</dt>
+                        <dd><?= (int)$product->getData('seller_id') ?></dd>
+
+                        <dt>Staged On</dt>
+                        <dd><?= $block->escapeHtml(date('M j, Y g:i A', strtotime((string)$product->getData('created_at')))) ?></dd>
+
+                        <?php if ($status === 'rejected' && $product->getData('rejection_reason')): ?>
+                        <dt>Rejection Reason</dt>
+                        <dd style="color:#842029"><?= $block->escapeHtml($product->getData('rejection_reason')) ?></dd>
+                        <?php endif; ?>
+                    </dl>
+                </div>
+            </div>
+
+            <!-- Stock -->
+            <div class="flxp-card">
+                <div class="flxp-card-header">📦 Inventory</div>
+                <div class="flxp-card-body">
+                    <dl class="flxp-dl">
+                        <dt>Quantity</dt>
+                        <dd><strong><?= (int)$product->getData('qty') ?></strong></dd>
+                        <dt>Stock Status</dt>
+                        <dd>
+                            <span class="flxp-badge <?= (int)$product->getData('is_in_stock') ? 'flxp-badge-instock' : 'flxp-badge-outofstock' ?>">
+                                <?= (int)$product->getData('is_in_stock') ? 'In Stock' : 'Out of Stock' ?>
+                            </span>
+                        </dd>
+                    </dl>
+                </div>
+            </div>
+
+        </div><!-- end info panel -->
+    </div><!-- end detail grid -->
+
+    <!-- Description -->
+    <?php if ($product->getData('description')): ?>
+    <div class="flxp-card" style="margin-bottom:24px">
+        <div class="flxp-card-header">📝 Description</div>
+        <div class="flxp-card-body" style="font-size:13px;line-height:1.7;color:#444;max-height:260px;overflow-y:auto">
+            <?= $product->getData('description') ?>
+        </div>
+    </div>
+    <?php endif; ?>
+
+    <!-- Variants (configurable only) -->
+    <?php if ($isConfig && count($variants) > 0): ?>
+    <div class="flxp-card" style="margin-bottom:24px">
+        <div class="flxp-card-header">
+            🔀 Variants
+            <span style="background:#e3e3e3;border-radius:10px;padding:1px 8px;font-size:11px;font-weight:600;margin-left:4px"><?= count($variants) ?></span>
+        </div>
+        <div style="overflow-x:auto">
+            <table class="flxp-variants-table">
+                <thead>
+                    <tr>
+                        <th>Image</th>
+                        <th>SKU</th>
+                        <th>Name</th>
+                        <?php
+                        // Detect which option columns have data
+                        $hasOption1 = false; $hasOption2 = false; $hasOption3 = false;
+                        $optLabel1 = ''; $optLabel2 = ''; $optLabel3 = '';
+                        foreach ($variants as $v) {
+                            if ($v->getData('option_label_1')) { $hasOption1 = true; $optLabel1 = $v->getData('option_label_1'); }
+                            if ($v->getData('option_label_2')) { $hasOption2 = true; $optLabel2 = $v->getData('option_label_2'); }
+                            if ($v->getData('option_label_3')) { $hasOption3 = true; $optLabel3 = $v->getData('option_label_3'); }
+                        }
+                        ?>
+                        <?php if ($hasOption1): ?><th><?= $block->escapeHtml($optLabel1) ?></th><?php endif; ?>
+                        <?php if ($hasOption2): ?><th><?= $block->escapeHtml($optLabel2) ?></th><?php endif; ?>
+                        <?php if ($hasOption3): ?><th><?= $block->escapeHtml($optLabel3) ?></th><?php endif; ?>
+                        <th>Price</th>
+                        <th>Qty</th>
+                        <th>Stock</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($variants as $variant): ?>
+                        <?php
+                        $vImg    = $block->getImageUrl((string)$variant->getData('image_path'), (string)$variant->getData('base_image_url'));
+                        $vStock  = (int)$variant->getData('is_in_stock');
+                        $vSPrice = $variant->getData('special_price');
+                        ?>
+                        <tr>
+                            <td>
+                                <?php if ($vImg): ?>
+                                    <img src="<?= $block->escapeUrl($vImg) ?>" class="flxp-vthumb" alt="" onerror="this.style.display='none'">
+                                <?php else: ?>
+                                    <div style="width:38px;height:38px;background:#f0f0f0;border-radius:4px;display:flex;align-items:center;justify-content:center;color:#ccc">📦</div>
+                                <?php endif; ?>
+                            </td>
+                            <td style="font-family:monospace;font-size:11px;color:#555"><?= $block->escapeHtml($variant->getData('sku')) ?></td>
+                            <td style="font-size:12px"><?= $block->escapeHtml($variant->getData('name')) ?></td>
+                            <?php if ($hasOption1): ?>
+                            <td>
+                                <?php if ($variant->getData('option_value_1')): ?>
+                                    <span class="flxp-badge" style="background:#f0f0f0;color:#444"><?= $block->escapeHtml($variant->getData('option_value_1')) ?></span>
+                                <?php else: ?>—<?php endif; ?>
+                            </td>
+                            <?php endif; ?>
+                            <?php if ($hasOption2): ?>
+                            <td>
+                                <?php if ($variant->getData('option_value_2')): ?>
+                                    <span class="flxp-badge" style="background:#f0f0f0;color:#444"><?= $block->escapeHtml($variant->getData('option_value_2')) ?></span>
+                                <?php else: ?>—<?php endif; ?>
+                            </td>
+                            <?php endif; ?>
+                            <?php if ($hasOption3): ?>
+                            <td>
+                                <?php if ($variant->getData('option_value_3')): ?>
+                                    <span class="flxp-badge" style="background:#f0f0f0;color:#444"><?= $block->escapeHtml($variant->getData('option_value_3')) ?></span>
+                                <?php else: ?>—<?php endif; ?>
+                            </td>
+                            <?php endif; ?>
+                            <td class="flxp-price">
+                                <?php if ($vSPrice > 0): ?>
+                                    <span class="flxp-price-special">$<?= number_format((float)$vSPrice, 2) ?></span>
+                                    <span class="flxp-price-original">$<?= number_format((float)$variant->getData('price'), 2) ?></span>
+                                <?php else: ?>
+                                    $<?= number_format((float)$variant->getData('price'), 2) ?>
+                                <?php endif; ?>
+                            </td>
+                            <td><?= (int)$variant->getData('qty') ?></td>
+                            <td>
+                                <span class="flxp-badge <?= $vStock ? 'flxp-badge-instock' : 'flxp-badge-outofstock' ?>">
+                                    <?= $vStock ? '✓' : '✕' ?>
+                                </span>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <?php endif; ?>
+
+</div><!-- end flxp-wrap -->
+
+<!-- Reject Modal -->
+<div id="flxp-reject-modal" class="flxp-modal-overlay">
+    <div class="flxp-modal">
+        <h3>Reject Product</h3>
+        <p style="font-size:13px;color:#666;margin:0 0 14px">Optionally provide a reason. The product will be removed from the approval queue.</p>
+        <form method="post" action="<?= $block->escapeUrl($block->getUrl('ahy_flxpoint_approval/product/reject')) ?>">
+            <input type="hidden" name="id" value="<?= $entityId ?>">
+            <input type="hidden" name="form_key" value="<?= $block->escapeHtmlAttr($block->getFormKey()) ?>">
+            <textarea name="rejection_reason" placeholder="Reason for rejection (optional)…"></textarea>
+            <div class="flxp-modal-footer">
+                <button type="button" onclick="document.getElementById('flxp-reject-modal').classList.remove('open')" class="flxp-btn flxp-btn-secondary">Cancel</button>
+                <button type="submit" class="flxp-btn flxp-btn-reject">Confirm Reject</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function switchImg(thumb, src) {
+    document.getElementById('flxp-main-img').src = src;
+    document.querySelectorAll('.flxp-img-thumb').forEach(t => t.classList.remove('active'));
+    thumb.classList.add('active');
+}
+// Close modal on overlay click
+document.getElementById('flxp-reject-modal').addEventListener('click', function(e) {
+    if (e.target === this) this.classList.remove('open');
+});
+</script>

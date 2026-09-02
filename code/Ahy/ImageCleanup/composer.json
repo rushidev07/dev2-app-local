@@ -1,0 +1,16 @@
+{
+    "name": "ahy/module-image-cleanup",
+    "description": "Disable products with no or broken images",
+    "type": "magento2-module",
+    "license": "GPL-3.0",
+    "minimum-stability": "dev",
+    "require": {},
+    "autoload": {
+        "files": [
+            "registration.php"
+        ],
+        "psr-4": {
+            "Ahy\\ImageCleanup\\": ""
+        }
+    }
+}

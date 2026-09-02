@@ -1,0 +1,62 @@
+<?php
+
+namespace Ahy\ThemeCustomization\Block\Override;
+
+use Magento\Catalog\Block\Product\ImageBuilder;
+use Magento\Catalog\Helper\Product\Configuration;
+use Magento\Catalog\Model\Product\Configuration\Item\ItemResolverInterface;
+use Magento\Checkout\Block\Cart\Item\Renderer as OriginalRenderer;
+use Magento\Checkout\Model\Session;
+use Magento\Framework\App\ObjectManager;
+use Magento\Framework\Message\ManagerInterface;
+use Magento\Framework\Module\Manager;
+use Magento\Framework\Pricing\PriceCurrencyInterface;
+use Magento\Framework\Url\Helper\Data as UrlHelper;
+use Magento\Framework\View\Element\Message\InterpretationStrategyInterface;
+use Magento\Framework\View\Element\Template\Context;
+use Ahy\ThemeCustomization\Helper\ProductImage;
+
+class CartItemRenderer extends OriginalRenderer
+{
+    private ProductImage $productImageHelper;
+
+    public function __construct(
+        Context $context,
+        Configuration $productConfig,
+        Session $checkoutSession,
+        ImageBuilder $imageBuilder,
+        UrlHelper $urlHelper,
+        ManagerInterface $messageManager,
+        PriceCurrencyInterface $priceCurrency,
+        Manager $moduleManager,
+        InterpretationStrategyInterface $messageInterpretationStrategy,
+        ProductImage $productImageHelper,
+        array $data = [],
+        ItemResolverInterface $itemResolver = null
+    ) {
+        parent::__construct(
+            $context,
+            $productConfig,
+            $checkoutSession,
+            $imageBuilder,
+            $urlHelper,
+            $messageManager,
+            $priceCurrency,
+            $moduleManager,
+            $messageInterpretationStrategy,
+            $data,
+            $itemResolver ?: ObjectManager::getInstance()->get(ItemResolverInterface::class)
+        );
+        $this->productImageHelper = $productImageHelper;
+    }
+
+    /**
+     * CDN image URL for the cart item's own SKU, falling back to the parent
+     * product's image (handled inside ProductImage::getUrlBySku()) when the
+     * item itself — typically a configurable/bundle variant — has none.
+     */
+    public function getCdnImageUrl(): ?string
+    {
+        return $this->productImageHelper->getUrlBySku($this->getItem()->getProduct()->getSku());
+    }
+}

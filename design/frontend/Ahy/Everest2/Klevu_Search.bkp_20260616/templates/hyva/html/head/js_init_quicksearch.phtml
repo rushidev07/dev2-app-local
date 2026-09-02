@@ -1,0 +1,63 @@
+<?php /** @var Klevu\FrontendJs\Block\Template $block */ ?>
+let searchContentElement = document.getElementById("search-content");
+if (searchContentElement) {
+    let klevuSearchResults_wrapper = document.createElement("div");
+    klevuSearchResults_wrapper.id = "klevuSearchResults_wrapper";
+    klevuSearchResults_wrapper.className = "klevuSearchResults_wrapper absolute w-full px-2";
+    let klevuSearchResults = document.createElement("div");
+    klevuSearchResults.id = "klevuSearchResults";
+    klevuSearchResults.className = "klevuSearchResults bg-white";
+    klevuSearchResults_wrapper.appendChild(klevuSearchResults);
+    searchContentElement.appendChild(klevuSearchResults_wrapper);
+    options.search.searchBoxTarget = klevuSearchResults;
+}
+
+function tryLoadWebpImage(img, newSrc, originalSrc, attr = 'src') {
+    const preloaderImg = new Image();
+    preloaderImg.onload = () => {
+        img.setAttribute(attr, newSrc);
+    };
+    preloaderImg.onerror = () => {
+        img.setAttribute(attr, originalSrc);
+    };
+    preloaderImg.src = newSrc;
+}
+
+function convertKlevuPngImagesToWebp() {
+    const container = document.getElementById('klevuSearchResults');
+    if (!container) return;
+    const images = container.querySelectorAll('img');
+    images.forEach((img) => {
+        const rawSrc = img.getAttribute('src');
+        if (rawSrc && rawSrc.trim().toLowerCase().endsWith('.png')) {
+            const webpSrc = rawSrc.replace(/\.png$/i, '.webp');
+            tryLoadWebpImage(img, webpSrc, rawSrc, 'src');
+        }
+
+        const origin = img.getAttribute('origin');
+        if (origin && origin.trim().toLowerCase().endsWith('.png')) {
+            const webpOrigin = origin.replace(/\.png$/i, '.webp');
+            tryLoadWebpImage(img, webpOrigin, origin, 'origin');
+        }
+    });
+}
+
+convertKlevuPngImagesToWebp();
+
+const klevuResultsEl = document.getElementById('klevuSearchResults');
+if (klevuResultsEl) {
+    const observer = new MutationObserver((mutations) => {
+        for (const mutation of mutations) {
+            if (mutation.addedNodes.length) {
+                convertKlevuPngImagesToWebp();
+                break;
+            }
+        }
+    });
+
+    observer.observe(klevuResultsEl, {
+        childList: true,
+        subtree: true,
+    });
+}
+

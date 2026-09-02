@@ -1,0 +1,55 @@
+<?php
+/** @var Klevu\FrontendJs\Block\Html\Head\JsInit $block */
+// Check if we are on the homepage
+$isHomePage = $block->getRequest()->getFullActionName() === 'cms_index_index';
+?>
+
+<?php if ($isHomePage): ?>
+<!-- Homepage: run after Klevu core is loaded -->
+<script type="text/javascript" defer>
+    document.addEventListener('klevuLoaded', function() {
+        klevu.interactive(function () {
+            var options = <?php /** @noEscape */ echo $block->getInteractiveOptionsSerialized(); ?>;
+            <?php /** @noEscape */ echo $block->getChildHtml('additional_before'); ?>
+            klevu(options);
+            <?php /** @noEscape */ echo $block->getChildHtml('additional_after'); ?>
+            klevu({
+                theme: {
+                    quickSearch: {
+                        loadDefaultStyles: true
+                    },
+                    landing: {
+                        loadDefaultStyles: false
+                    },
+                    catnav: {
+                        loadDefaultStyles: false
+                    }
+                }
+            });
+        });
+    });
+</script>
+<?php else: ?>
+<!-- Other pages: run immediately -->
+<script type="text/javascript" id="klevu_jsinteractive" defer>
+    klevu.interactive(function () {
+        var options = <?php /** @noEscape */ echo $block->getInteractiveOptionsSerialized(); ?>;
+        <?php /** @noEscape */ echo $block->getChildHtml('additional_before'); ?>
+        klevu(options);
+        <?php /** @noEscape */ echo $block->getChildHtml('additional_after'); ?>
+        klevu({
+            theme: {
+                quickSearch: {
+                    loadDefaultStyles: true
+                },
+                landing: {
+                    loadDefaultStyles: false
+                },
+                catnav: {
+                    loadDefaultStyles: false
+                }
+            }
+        });
+    });
+</script>
+<?php endif; ?>

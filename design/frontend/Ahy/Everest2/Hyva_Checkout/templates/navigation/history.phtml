@@ -1,0 +1,109 @@
+<?php
+/**
+ * Hyvä Themes - https://hyva.io
+ * Copyright © Hyvä Themes 2022-present. All rights reserved.
+ * This product is licensed per Magento install
+ * See https://hyva.io/license
+ */
+
+declare(strict_types=1);
+
+/** @var Template $block */
+/** @var ViewModelRegistry $viewModels */
+/** @var Escaper $escaper */
+
+use Hyva\Checkout\ViewModel\Navigation;
+use Hyva\Theme\Model\ViewModelRegistry;
+use Magento\Framework\Escaper;
+use Magento\Framework\View\Element\Template;
+
+$viewModel = $viewModels->require(Navigation::class);
+$config = $viewModel->getConfig();
+$helper = $this->helper('Ahy\ThemeCustomization\Helper\Session');
+$checkoutSession = $helper->getCheckoutSession();
+$paymentToken = $checkoutSession->getData('payment_token');
+?>
+<?php if ($config->hasSteps() && $config->isMultiStepper()): ?>
+    <?php $previous = $config->getStepBefore(); ?>
+    <?php $next = $config->getStepAfter(); ?>
+    <?php 
+        $nextLabel = '';
+        if ($next && is_array($next)) {
+            switch ($next['label']) {
+                case 'SELECT FFL':
+                    $nextLabel = 'FFL Selection';
+                    break;
+                case 'VERIFY AGE':
+                    $nextLabel = 'Age Verification';
+                    break;
+                case 'REVIEW & ORDER':
+                    $nextLabel = 'Review & Order';
+                    break;
+                default:
+                    $nextLabel = $next['label'];
+                    break;
+            }
+        }
+        if($paymentToken){
+            $nextLabel = 'Place Order';
+        }
+    ?>
+
+    <?php if (is_array($previous) && $viewModel->getSystemConfig()->showNavigationBackButton()): ?>
+        <button type="button"
+                rel="prev"
+                class="btn btn-secondary ahy-custom-btn rounded-full w-full text-center flex justify-center"
+                x-spread="buttonPrevious('<?= $escaper->escapeJs($previous['route']) ?>')"
+                x-bind="buttonPrevious('<?= $escaper->escapeJs($previous['route']) ?>')"
+        >
+            <?= $escaper->escapeHtml(__('Back to %1', [strtolower((string) __($previous['label'] ?? 'previous step'))])) ?>
+        </button>
+    <?php endif ?>
+
+    <?php if (is_array($next)): ?>
+        <button type="button"
+                rel="next"
+                class="ahy-proceed-btn btn bg-ahy-red rounded-full w-full h-14 flex leading-none ahy-custom-btn !border-0 justify-center hover:bg-ahy-red-light rounded-full focus:ring-transparent p-4"
+                x-spread="buttonNext('<?= $escaper->escapeJs($next['route']) ?>')"
+                x-bind="buttonNext('<?= $escaper->escapeJs($next['route']) ?>')"
+                <?php if($paymentToken): ?>
+                x-init="
+                (() => {
+                    const telInput = document.querySelector('input[name=telephone]');
+                    if (!telInput) return;
+                    if (!telInput.offsetParent) return;
+
+                    let digits = telInput.value.replace(/\D/g, '');
+                    if (digits.length === 11 && digits.startsWith('1')) {
+                        digits = digits.slice(1);
+                    }
+
+                    if (digits.length !== 10) return;
+
+                    $el.click();
+                })()"
+                <?php endif; ?>
+                x-on:click.capture="
+                (() => {
+                    const telInput = document.querySelector('input[name=telephone]');
+                    if (!telInput) return;
+                    if (!telInput.offsetParent) return;
+                    let digits = telInput.value.replace(/\D/g, '');
+                    if (digits.length === 11 && digits.startsWith('1')) {
+                        digits = digits.slice(1);
+                    }
+                    if (digits.length !== 10) {
+                        $event.stopImmediatePropagation();
+                        $event.preventDefault();
+                    }
+                })()"
+        >
+            <?= $escaper->escapeHtml(__('Next')) ?>
+        </button>
+    <?php endif ?>
+<?php endif ?>
+<style>
+    .ahy-proceed-btn{
+        box-shadow: #12334b47 0px 0px 14px 2px, #00000024 0px -1px 0px inset !important;
+    }
+</style>

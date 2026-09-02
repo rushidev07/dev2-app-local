@@ -1,0 +1,212 @@
+<?php
+declare(strict_types=1);
+
+namespace FalcoSense\Search\Console\Command;
+
+use FalcoSense\Search\Helper\Data;
+use FalcoSense\Search\Service\DuplicateSkuResolver;
+use FalcoSense\Search\Service\ProductSyncService;
+use FalcoSense\Search\Service\SyncLockManager;
+use Magento\Catalog\Model\ResourceModel\Product\CollectionFactory;
+use Magento\Store\Model\StoreManagerInterface;
+use Symfony\Component\Console\Command\Command;
+use Symfony\Component\Console\Input\InputInterface;
+use Symfony\Component\Console\Input\InputOption;
+use Symfony\Component\Console\Output\OutputInterface;
+
+class FullSyncCommand extends Command
+{
+    private const BATCH_SIZE = 500;
+
+    public function __construct(
+        private readonly Data                  $helper,
+        private readonly ProductSyncService    $syncService,
+        private readonly CollectionFactory     $collectionFactory,
+        private readonly SyncLockManager       $lockManager,
+        private readonly StoreManagerInterface $storeManager,
+        private readonly DuplicateSkuResolver  $duplicateSkuResolver,
+    ) {
+        parent::__construct();
+    }
+
+    protected function configure(): void
+    {
+        $this->setName('smartsearch:sync:full')
+             ->setDescription('Sync products to the search platform.')
+             ->addOption('force', null, InputOption::VALUE_NONE, 'Ignore cursor — send all products')
+             ->addOption('store', null, InputOption::VALUE_OPTIONAL, 'Magento store ID (0 = all stores)', 0);
+    }
+
+    protected function execute(InputInterface $input, OutputInterface $output): int
+    {
+        $storeId = (int) $input->getOption('store');
+        $force   = (bool) $input->getOption('force');
+
+        // Resolve which stores to sync
+        $storeIds = $storeId > 0 ? [$storeId] : $this->getConfiguredStoreIds();
+
+        if (empty($storeIds)) {
+            $output->writeln('<error>[SmartSearch] No stores with API key configured. Aborting.</error>');
+            return 1;
+        }
+
+        if (!$this->lockManager->acquireOrTakeOver('command')) {
+            $info = $this->lockManager->getLockInfo();
+            $output->writeln(sprintf('<error>[SmartSearch] Sync already running (via %s, started %s).</error>',
+                $info['source'] ?? 'unknown', $info['started'] ?? 'unknown'));
+            return 1;
+        }
+
+        $lockManager = $this->lockManager;
+        register_shutdown_function(static fn() => $lockManager->release());
+
+        $lastSyncAt    = $force ? null : $this->helper->getLastSyncAt();
+        $syncStartedAt = date('Y-m-d H:i:s');
+        $totalIndexed  = 0;
+        $totalFailed   = 0;
+        $start         = microtime(true);
+
+        $output->writeln(sprintf('<info>[SmartSearch] Syncing stores: %s — mode: %s</info>',
+            implode(', ', $storeIds),
+            $force ? 'force-full' : 'delta since ' . ($lastSyncAt ?? 'beginning')
+        ));
+
+        try {
+            foreach ($storeIds as $sid) {
+                $output->writeln("<info>[SmartSearch] → Store {$sid}</info>");
+                [$indexed, $failed, $aborted] = $this->syncStore($sid, $lastSyncAt, $output);
+                $totalIndexed += $indexed;
+                $totalFailed  += $failed;
+                if ($aborted) break;
+            }
+
+            $elapsed = round(microtime(true) - $start, 1);
+
+            if ($totalFailed === 0) {
+                $this->helper->setLastSyncAt($syncStartedAt);
+            }
+
+            $msg = "Synced {$totalIndexed} products in {$elapsed}s" . ($totalFailed ? ", failed: {$totalFailed}" : '') . '.';
+            $this->lockManager->writeResult($totalFailed === 0, $msg);
+            $output->writeln("<info>[SmartSearch] Done — {$msg}</info>");
+            return $totalFailed === 0 ? 0 : 1;
+
+        } finally {
+            $this->lockManager->release();
+        }
+    }
+
+    private function syncStore(int $storeId, ?string $lastSyncAt, OutputInterface $output): array
+    {
+        $page = 1;
+        $indexed = 0;
+        $failed  = 0;
+
+        // Computed once per store, not per page — duplicate detection needs the
+        // full enabled-SKU set for the store to find superseded siblings.
+        // Excluded in PHP (not via a SQL NOT IN) — with large catalogs this list
+        // can run into the tens of thousands, and inlining that many literals into
+        // one query overwhelms Magento's legacy Zend_Db query-debug formatting
+        // (surfaces as a fatal "preg_replace(): Passing null..." deprecation error).
+        // Continuation below is driven by the RAW (pre-filter) page count, so
+        // pagination coverage is unaffected — nothing is skipped.
+        $supersededSkus = $this->duplicateSkuResolver->getSupersededSkus($storeId);
+        $supersededSkuSet = array_flip($supersededSkus);
+        if (!empty($supersededSkus)) {
+            $output->writeln(sprintf('<comment>[SmartSearch] Excluding %d superseded duplicate SKU(s).</comment>', count($supersededSkus)));
+        }
+
+        do {
+            if (!$this->lockManager->isLocked()) {
+                $output->writeln('<comment>[SmartSearch] Lock removed — aborting.</comment>');
+                return [$indexed, $failed, true];
+            }
+
+            $rawProducts = array_values($this->buildCollection($lastSyncAt, $storeId, $page)->getItems());
+            if (empty($rawProducts)) break;
+
+            $products = empty($supersededSkuSet)
+                ? $rawProducts
+                : array_values(array_filter($rawProducts, static fn($p) => !isset($supersededSkuSet[$p->getSku()])));
+
+            if (empty($products)) {
+                $page++;
+                continue;
+            }
+
+            $count = $attempt = 0;
+            $count = -3;
+            while ($count === -3 && $attempt <= 3) {
+                if ($attempt > 0) sleep(min(60, 10 * $attempt));
+                $count = $this->syncService->syncBatch($products, $storeId);
+                $attempt++;
+            }
+
+            if ($count === -1) {
+                $output->writeln('<error>[SmartSearch] Invalid API key or connection error. Aborting.</error>');
+                $this->lockManager->writeResult(false, 'Connection failed or invalid API key.');
+                return [$indexed, $failed + count($products), false];
+            }
+            if ($count === -2) {
+                $output->writeln('<comment>[SmartSearch] Product limit reached.</comment>');
+                break;
+            }
+            if ($count === -3) {
+                $failed += count($products);
+                $page++;
+                continue;
+            }
+
+            $indexed += $count;
+            $output->writeln("  Page {$page} → {$count} products");
+            $page++;
+        } while (count($rawProducts) === self::BATCH_SIZE);
+
+        return [$indexed, $failed, false];
+    }
+
+    /**
+     * All store IDs that have an API key configured.
+     */
+    private function getConfiguredStoreIds(): array
+    {
+        $ids = [];
+        foreach ($this->storeManager->getStores() as $store) {
+            $sid = (int) $store->getId();
+            if ($this->helper->getApiKey($sid)) {
+                $ids[] = $sid;
+            }
+        }
+        return $ids;
+    }
+
+    private function buildCollection(?string $lastSyncAt, int $storeId, int $page): \Magento\Catalog\Model\ResourceModel\Product\Collection
+    {
+        $collection = $this->collectionFactory->create();
+        $collection->setStoreId($storeId);
+        $collection->addStoreFilter($storeId);
+        $collection->addAttributeToSelect('*');
+        $collection->addAttributeToFilter('status', \Magento\Catalog\Model\Product\Attribute\Source\Status::STATUS_ENABLED);
+        if ($lastSyncAt !== null) {
+            $collection->addAttributeToFilter('updated_at', ['gt' => $lastSyncAt]);
+        }
+
+        // OOS exclusion — full/cron sync only, never the real-time save observer.
+        $collection->joinField(
+            'is_in_stock',
+            'cataloginventory_stock_item',
+            'is_in_stock',
+            'product_id=entity_id',
+            ['stock_id' => 1],
+            'inner'
+        );
+        $collection->addFieldToFilter('is_in_stock', 1);
+
+        // Duplicate-SKU exclusion happens in PHP after fetch — see syncStore().
+
+        $collection->setOrder('entity_id', 'ASC');
+        $collection->setPageSize(self::BATCH_SIZE);
+        $collection->setCurPage($page);
+        return $collection;
+    }
+}

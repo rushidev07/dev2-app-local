@@ -1,0 +1,14 @@
+<?php 
+    $magentoCurrentUrl = $block->getCurrentUrl();
+?>
+<li id="wk-mp-menu-sellerpayments" 
+class="wk-mp-menu-sellerpayments level-0 
+<?=strpos($magentoCurrentUrl, 'sellerpayments/account/methods/')? "current active":"";?>">
+    <a href="<?=$block->escapeUrl($block->getUrl(
+        'sellerpayments/account/methods',
+        ['_secure' => $block->getRequest()->isSecure()]
+    )); ?>"
+        class="<?=strpos($magentoCurrentUrl, 'sellerpayments/account/methods/')? "active":"";?>">
+        <span><?=$block->escapeHtml(__('Manage Payment Methods')); ?></span>
+    </a>
+</li>

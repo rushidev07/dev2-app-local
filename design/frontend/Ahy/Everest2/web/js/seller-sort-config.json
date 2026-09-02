@@ -1,0 +1,50 @@
+{
+    "off the grid surplus": {
+        "type": "otg",
+        "typeOrder": {
+            "trailblazer": 0,
+            "lancer": 1,
+            "kestral": 2,
+            "hideout": 3,
+            "hardened": 4,
+            "havok": 5,
+            "field": 6,
+            "thunderbird": 7,
+            "earl": 8,
+            "bruin": 9,
+            "echo": 10,
+            "heston": 11,
+            "shirt": 12,
+            "tee": 13,
+            "hat": 14
+        }
+    },
+    "off the grid": {
+        "type": "otg",
+        "typeOrder": {
+            "trailblazer": 0,
+            "lancer": 1,
+            "kestral": 2,
+            "hideout": 3,
+            "hardened": 4,
+            "havok": 5,
+            "field": 6,
+            "thunderbird": 7,
+            "earl": 8,
+            "bruin": 9,
+            "echo": 10,
+            "heston": 11,
+            "shirt": 12,
+            "tee": 13,
+            "hat": 14
+        }
+    },
+    "freaks of nature": {
+        "type": "pinned",
+        "pinnedProducts": [
+            "skin support electrolyte",
+            "peak performance sun stick",
+            "daily defender spf30"
+        ]
+    }
+}

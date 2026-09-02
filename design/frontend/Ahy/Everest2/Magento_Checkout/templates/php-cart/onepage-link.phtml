@@ -1,0 +1,26 @@
+<?php
+/**
+ * Hyvä Themes - https://hyva.io
+ * Copyright © Hyvä Themes 2020-present. All rights reserved.
+ * This product is licensed per Magento install
+ * See https://hyva.io/license
+ */
+
+use Magento\Checkout\Block\Onepage\Link;
+use Magento\Framework\Escaper;
+
+/** @var Escaper $escaper */
+/** @var Link $block */
+?>
+<?php if ($block->isPossibleOnepageCheckout()): ?>
+    <a @click.prevent.stop="$dispatch('toggle-authentication',
+        {url: '<?= $escaper->escapeHtmlAttr($escaper->escapeUrl($block->getCheckoutUrl())) ?>'});"
+        href="<?= $escaper->escapeHtmlAttr($escaper->escapeUrl($block->getCheckoutUrl())) ?>"
+        title="<?= $escaper->escapeHtmlAttr(__('Continue to Checkout')) ?>"
+        class="btn bg-ahy-red hover:bg-ahy-red-light w-full relative ahy-custom-btn mb-6"
+        id="checkout-link-button"
+    >
+        <img src="/media/icons/lock.svg" alt="lock icon" class="w-4 h-4">
+        <span class="w-full font-bold py-2 text-center"><?= $escaper->escapeHtml(__('Continue to Checkout')) ?></span>
+    </a>
+<?php endif ?>

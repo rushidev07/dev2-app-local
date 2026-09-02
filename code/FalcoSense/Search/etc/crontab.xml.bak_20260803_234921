@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="urn:magento:module:Magento_Cron:etc/crontab.xsd">
+
+    <group id="default">
+        <job name="falcosense_search_delta_sync"
+             instance="FalcoSense\Search\Cron\ProductSync"
+             method="execute">
+            <schedule>* * * * *</schedule>
+        </job>
+
+        <!-- Separate, slower cadence than delta_sync — image re-encoding is
+             I/O/CPU heavier per item than the API sync above. -->
+        <job name="falcosense_search_image_compress"
+             instance="FalcoSense\Search\Cron\ImageCompress"
+             method="execute">
+            <schedule>*/5 * * * *</schedule>
+        </job>
+    </group>
+
+</config>

@@ -1,0 +1,383 @@
+<?php
+/**
+ * Hyvä Themes - https://hyva.io
+ * Copyright © Hyvä Themes 2020-present. All rights reserved.
+ * This product is licensed per Magento install
+ * See https://hyva.io/license
+ */
+
+declare(strict_types=1);
+
+use Magento\Framework\Escaper;
+use Magento\Framework\View\Element\Template;
+use Magento\Search\Helper\Data as SearchHelper;
+use Ahy\SmartSearch\Helper\Data as SmartSearchHelper;
+use Ahy\SmartSearch\Service\SearchTokenService;
+
+// phpcs:disable Magento2.Templates.ThisInTemplate.FoundHelper
+
+/** @var Escaper $escaper */
+/** @var Template $block */
+/** @var SearchHelper $helper */
+
+$helper            = $this->helper(SearchHelper::class);
+$smartSearchHelper = $this->helper(SmartSearchHelper::class);
+
+$searchUrl  = $smartSearchHelper->getSearchUrl() ?: 'http://localhost:8000/api/search.php';
+$suggestUrl = $block->getUrl('smartsearch/suggest/index');
+
+// Fetch short-lived token server-side — the real API key never reaches the browser
+$tokenService = \Magento\Framework\App\ObjectManager::getInstance()->get(SearchTokenService::class);
+$searchToken  = $tokenService->getToken((int) $block->getStoreId());
+?>
+<script>
+    'use strict';
+
+    function initMiniSearch() {
+        return {
+            minSearchLength: <?= (int) $helper->getMinQueryLength() ?>,
+            suggestUrl:      <?= json_encode($suggestUrl) ?>,
+            searchToken:     <?= json_encode($searchToken) ?>,
+
+            terms:          [],
+            categories:     [],
+            products:       [],
+            total:          0,
+            correction:     null,
+            currentQuery:   '',
+            loading:        false,
+            open:           false,
+            isPopular:      false,
+            _controller:    null,
+            _popularLoaded: false,
+
+            get hasResults() {
+                return this.terms.length > 0 || this.categories.length > 0 || this.products.length > 0 || this.correction !== null;
+            },
+
+            suggest() {
+                const term = this.$refs.searchInput.value;
+                this.currentQuery = term;
+                if (term.length >= this.minSearchLength) {
+                    this.$refs.searchInput.setCustomValidity('');
+                    this.isPopular = false;
+                    this.fetchSuggestions(term);
+                } else {
+                    this.terms = []; this.categories = []; this.products = [];
+                    this.open = false;
+                    this.isPopular = false;
+                }
+            },
+
+            async onFocus() {
+                const term = this.$refs.searchInput.value;
+                if (term.length >= this.minSearchLength) {
+                    if (this.hasResults) { this.open = true; }
+                    else { this.isPopular = false; this.fetchSuggestions(term); }
+                    return;
+                }
+                // Empty box — show popular content
+                if (this._popularLoaded && this.hasResults) {
+                    this.open = true;
+                    return;
+                }
+                this.isPopular = true;
+                await this.fetchSuggestions('');
+            },
+
+            async fetchSuggestions(term) {
+                if (this._controller) this._controller.abort();
+                this._controller = new AbortController();
+                this.loading = true;
+                try {
+                    const url = new URL(this.suggestUrl);
+                    if (term) url.searchParams.set('q', term);
+                    if (this.searchToken) url.searchParams.set('search_token', this.searchToken);
+
+                    const resp = await fetch(url.toString(), { signal: this._controller.signal });
+                    const data = await resp.json();
+
+                    this.terms      = Array.isArray(data.terms)      ? data.terms      : [];
+                    this.categories = Array.isArray(data.categories)  ? data.categories : [];
+                    this.products   = Array.isArray(data.products)    ? data.products   : [];
+                    this.total      = data.total || 0;
+                    this.correction = data.correction || null;
+                    this.open       = this.hasResults;
+                    if (this.isPopular) this._popularLoaded = true;
+                } catch (e) {
+                    if (e.name !== 'AbortError') console.error('[AhySuggest] fetch error', e);
+                } finally {
+                    this.loading = false;
+                }
+            },
+
+            search(term) {
+                const input = this.$refs.searchInput;
+                term = term || input.value;
+                if (term.length < this.minSearchLength) {
+                    input.setCustomValidity('<?= $escaper->escapeJs(
+                        __('Minimum Search query length is %1', $helper->getMinQueryLength())
+                    ) ?>');
+                    input.reportValidity();
+                    return;
+                }
+                this.open = false;
+                this.terms = []; this.categories = []; this.products = [];
+                input.setCustomValidity('');
+                input.value = term;
+                this.$refs.form.submit();
+            },
+
+            focusItem(el) {
+                if (el && el.getAttribute('tabindex') !== null) { el.focus(); return true; }
+                return false;
+            },
+
+            formatPrice(price) {
+                if (price === null || price === undefined) return '';
+                return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(price);
+            },
+
+            highlightMatch(text, q) {
+                if (!q || !text) return text;
+                const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                return text.replace(new RegExp('(' + escaped + ')', 'gi'), '<mark class="bg-yellow-100 text-ahy-blue font-semibold not-italic">$1</mark>');
+            },
+
+            /* Arrow-key navigation across all focusable items in the dropdown */
+            navDown(e) {
+                e.preventDefault();
+                const items = Array.from(this.$root.querySelectorAll('.ahy-suggest-item'));
+                const idx   = items.indexOf(document.activeElement);
+                if (idx === -1) { items[0]?.focus(); } else { items[idx + 1]?.focus(); }
+            },
+            navUp(e) {
+                e.preventDefault();
+                const items = Array.from(this.$root.querySelectorAll('.ahy-suggest-item'));
+                const idx   = items.indexOf(document.activeElement);
+                if (idx <= 0) { this.$refs.searchInput.focus(); } else { items[idx - 1]?.focus(); }
+            },
+        }
+    }
+</script>
+
+<div class="container px-0 py-2 mx-auto text-black" x-data="initMiniSearch()" @click.outside="open = false">
+    <form class="form minisearch relative" id="search_mini_form" x-ref="form" @submit.prevent="search()"
+          action="<?= $escaper->escapeUrl($helper->getResultUrl()) ?>" method="get">
+
+        <label class="hidden" for="search" data-role="minisearch-label">
+            <span><?= $escaper->escapeHtml(__('Search')) ?></span>
+        </label>
+
+        <!-- Search input -->
+        <div class="relative flex items-center">
+            <input id="search"
+                x-ref="searchInput"
+                type="text"
+                autocomplete="off"
+                name="<?= $escaper->escapeHtmlAttr($helper->getQueryParamName()) ?>"
+                value="<?= /** @noEscape */ $helper->getEscapedQueryText() ?>"
+                placeholder="<?= $escaper->escapeHtmlAttr(__('Search for products')) ?>"
+                maxlength="<?= $escaper->escapeHtmlAttr($helper->getMaxQueryLength()) ?>"
+                class="w-full p-2 py-3 leading-normal placeholder-black transition appearance-none text-grey-800
+                       focus:outline-none focus:border-transparent focus:ring-transparent pl-6 rounded-full border-transparent"
+                @focus="onFocus()"
+                @input.debounce.250="suggest"
+                @keydown.arrow-down.prevent="navDown($event)"
+                @keydown.escape="open = false; terms = []; categories = []; products = []"
+            />
+            <!-- Loading spinner -->
+            <div x-show="loading" class="absolute right-14 top-1/2 -translate-y-1/2 pointer-events-none">
+                <svg class="animate-spin w-4 h-4 text-ahy-blue" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+                </svg>
+            </div>
+        </div>
+
+        <!-- ── Suggestions dropdown ──────────────────────────────────────────── -->
+        <div x-show="open && hasResults"
+             x-cloak
+             class="123 test absolute left-0 right-0 top-full mt-1 z-[500] bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden"
+             style="min-width: 340px;">
+
+            <!-- ── TERMS section ────────────────────────────────────────────── -->
+            <template x-if="terms.length > 0">
+                <div>
+                    <div class="px-4 pt-3 pb-1">
+                        <span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest"
+                              x-text="isPopular ? 'Popular Searches' : 'Suggestions'"></span>
+                    </div>
+                    <ul>
+                        <template x-for="(term, idx) in terms" :key="'t' + idx">
+                            <li>
+                                <button type="button"
+                                        class="ahy-suggest-item w-full flex items-center gap-3 px-4 py-2 text-left hover:bg-blue-50 transition-colors group"
+                                        tabindex="0"
+                                        @click="search(term)"
+                                        @keydown.enter="search(term)"
+                                        @keydown.arrow-up.prevent="navUp($event)"
+                                        @keydown.arrow-down.prevent="navDown($event)"
+                                        @keydown.escape="open = false; $refs.searchInput.focus()">
+                                    <!-- Search icon -->
+                                    <svg class="w-4 h-4 text-gray-300 group-hover:text-ahy-blue flex-shrink-0 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                                    </svg>
+                                    <span class="text-sm text-gray-700 group-hover:text-ahy-blue truncate"
+                                          x-html="highlightMatch(term, $refs.searchInput.value)"></span>
+                                    <!-- Arrow hint -->
+                                    <svg class="w-3.5 h-3.5 text-gray-200 group-hover:text-ahy-blue ml-auto flex-shrink-0 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                                    </svg>
+                                </button>
+                            </li>
+                        </template>
+                    </ul>
+                </div>
+            </template>
+
+            <!-- ── CATEGORIES section ───────────────────────────────────────── -->
+            <template x-if="categories.length > 0">
+                <div :class="terms.length > 0 ? 'border-t border-gray-100' : ''">
+                    <div class="px-4 pt-3 pb-1">
+                        <span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Categories</span>
+                    </div>
+                    <ul>
+                        <template x-for="(cat, idx) in categories" :key="'c' + idx">
+                            <li>
+                                <button type="button"
+                                        class="ahy-suggest-item w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-blue-50 transition-colors group"
+                                        tabindex="0"
+                                        @click="cat.url ? (window.location.href = cat.url) : search(cat.name)"
+                                        @keydown.enter="cat.url ? (window.location.href = cat.url) : search(cat.name)"
+                                        @keydown.arrow-up.prevent="navUp($event)"
+                                        @keydown.arrow-down.prevent="navDown($event)"
+                                        @keydown.escape="open = false; $refs.searchInput.focus()">
+                                    <!-- Category / grid icon -->
+                                    <div class="w-7 h-7 rounded-md bg-blue-50 flex items-center justify-center flex-shrink-0 group-hover:bg-ahy-blue transition-colors">
+                                        <svg class="w-3.5 h-3.5 text-ahy-blue group-hover:text-white transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/>
+                                        </svg>
+                                    </div>
+                                    <div class="flex-1 min-w-0">
+                                        <span class="text-sm font-medium text-gray-800 group-hover:text-ahy-blue truncate block"
+                                              x-html="highlightMatch(cat.name, $refs.searchInput.value)"></span>
+                                        <span class="text-xs text-gray-400" x-text="cat.count + ' products'"></span>
+                                    </div>
+                                    <svg class="w-3.5 h-3.5 text-gray-200 group-hover:text-ahy-blue flex-shrink-0 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                                    </svg>
+                                </button>
+                            </li>
+                        </template>
+                    </ul>
+                </div>
+            </template>
+
+            <!-- ── PRODUCTS section ─────────────────────────────────────────── -->
+            <template x-if="products.length > 0">
+                <div :class="(terms.length > 0 || categories.length > 0) ? 'border-t border-gray-100' : ''">
+                    <div class="px-4 pt-3 pb-1">
+                        <span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest"
+                              x-text="isPopular ? 'Popular Products' : 'Products'"></span>
+                    </div>
+                    <ul class="divide-y divide-gray-50">
+                        <template x-for="(s, idx) in products" :key="'p' + idx">
+                            <li>
+                                <div class="ahy-suggest-item flex items-center gap-3 px-4 py-2.5 cursor-pointer hover:bg-blue-50 transition-colors group"
+                                     tabindex="0"
+                                     @click="search(s.title)"
+                                     @keydown.enter="search(s.title)"
+                                     @keydown.arrow-up.prevent="navUp($event)"
+                                     @keydown.arrow-down.prevent="navDown($event)"
+                                     @keydown.escape="open = false; $refs.searchInput.focus()">
+
+                                    <!-- Thumbnail -->
+                                    <div class="w-11 h-11 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0 border border-gray-100">
+                                        <template x-if="s.image">
+                                            <img :src="s.image" :alt="s.title"
+                                                 class="w-full h-full object-cover"
+                                                 @error="$event.target.style.display='none'"/>
+                                        </template>
+                                        <template x-if="!s.image">
+                                            <div class="w-full h-full flex items-center justify-center">
+                                                <svg class="w-4 h-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                                                </svg>
+                                            </div>
+                                        </template>
+                                    </div>
+
+                                    <!-- Name + price -->
+                                    <div class="flex-1 min-w-0">
+                                        <p class="text-sm font-medium text-gray-800 group-hover:text-ahy-blue truncate leading-snug"
+                                           x-html="highlightMatch(s.title, $refs.searchInput.value)"></p>
+                                        <template x-if="s.brand">
+                                            <p class="text-xs text-gray-400 mt-0.5 truncate" x-text="s.brand"></p>
+                                        </template>
+                                        <div class="flex items-baseline gap-1.5 mt-0.5">
+                                            <template x-if="s.special_price && s.special_price < s.price">
+                                                <span class="text-sm font-bold text-ahy-red" x-text="formatPrice(s.special_price)"></span>
+                                            </template>
+                                            <template x-if="s.price">
+                                                <span class="text-sm font-semibold"
+                                                      :class="s.special_price && s.special_price < s.price ? 'text-gray-400 line-through text-xs' : 'text-ahy-blue'"
+                                                      x-text="formatPrice(s.price)"></span>
+                                            </template>
+                                        </div>
+                                    </div>
+
+                                    <svg class="w-3.5 h-3.5 text-gray-200 group-hover:text-ahy-blue flex-shrink-0 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                                    </svg>
+                                </div>
+                            </li>
+                        </template>
+                    </ul>
+                </div>
+            </template>
+
+            <!-- ── SPELL CORRECTION row ────────────────────────────────────── -->
+            <template x-if="correction !== null && !isPopular">
+                <div class="border-t border-gray-100">
+                    <button type="button"
+                            class="ahy-suggest-item w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-amber-50 transition-colors group"
+                            tabindex="0"
+                            @click="search(correction)"
+                            @keydown.enter="search(correction)"
+                            @keydown.arrow-up.prevent="navUp($event)"
+                            @keydown.arrow-down.prevent="navDown($event)"
+                            @keydown.escape="open = false; $refs.searchInput.focus()">
+                        <svg class="w-4 h-4 text-amber-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M12 2a10 10 0 100 20A10 10 0 0012 2z"/>
+                        </svg>
+                        <span class="text-sm text-gray-500">
+                            Did you mean <strong class="text-ahy-blue font-semibold" x-text="correction"></strong>?
+                        </span>
+                        <svg class="w-3.5 h-3.5 text-gray-200 group-hover:text-ahy-blue ml-auto flex-shrink-0 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                        </svg>
+                    </button>
+                </div>
+            </template>
+
+            <!-- ── Footer: View all (hidden for popular/empty state) ──────── -->
+            <div x-show="!isPopular" class="border-t border-gray-100 bg-gray-50">
+                <button type="submit"
+                        class="w-full flex items-center justify-center gap-2 px-4 py-3 text-sm font-semibold text-ahy-blue hover:bg-blue-50 transition-colors">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                    </svg>
+                    <span>View all results</span>
+                </button>
+            </div>
+        </div>
+
+        <button type="submit"
+                title="<?= $escaper->escapeHtml(__('Search')) ?>"
+                class="action search sr-only"
+                aria-label="Search">
+            <?= $escaper->escapeHtml(__('Search')) ?>
+        </button>
+    </form>
+</div>

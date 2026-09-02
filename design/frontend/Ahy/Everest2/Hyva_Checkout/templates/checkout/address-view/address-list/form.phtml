@@ -1,0 +1,177 @@
+<?php
+/**
+ * Hyvä Themes - https://hyva.io
+ * Copyright © Hyvä Themes 2022-present. All rights reserved.
+ * This product is licensed per Magento install
+ * See https://hyva.io/license
+ */
+
+declare(strict_types=1); 
+
+/** @var Template $block */
+/** @var ViewModelRegistry $viewModels */
+/** @var MagewireAddressFormInterface $magewire */
+/** @var CountryModel $country */
+/** @var RegionModel $region */
+/** @var Escaper $escaper */
+/** @var EntityFormInterface $form */
+
+use Hyva\Checkout\Model\Form\EntityFormInterface;
+use Hyva\Checkout\Magewire\Checkout\AddressView\MagewireAddressFormInterface;
+use Hyva\Theme\Model\ViewModelRegistry;
+use Hyva\Theme\ViewModel\HeroiconsOutline;
+use Magento\Directory\Model\Country as CountryModel;
+use Magento\Directory\Model\Region as RegionModel;
+use Magento\Framework\Escaper;
+use Magento\Framework\View\Element\Template;
+
+$iconsViewModel = $viewModels->require(HeroiconsOutline::class);
+$form = $magewire->getPublicForm();
+$namespace = $form->getNamespace();
+?>
+<div>
+    <header class="section-title border-b border-gray-400 pb-1 mb-6">
+        <h2 class="text-gray-800 text-xl font-medium">
+            <?= $escaper->escapeHtml(__('New Address')) ?>
+        </h2>
+    </header>
+
+    <form class="space-y-6 address-form" x-data="hyva.formValidation($el)" novalidate>
+        <div class="grid grid-cols-12 gap-x-4">
+            <?= /** @noEscape */ $block->getChildHtml('address-form.before') ?>
+
+            <?php if ($form->hasFields()): ?>
+                <?php foreach ($form->getFields() as $field): ?>
+                    <?php if ($field->canRender()): ?>
+                        <?php /** @purge: md:col-span-3 md:col-span-6 md:col-span-9 md:col-span-12 */ ?>
+                        <div class="<?= $escaper->escapeHtmlAttr($field->renderWrapperClass(['col-span-12'])) ?>">
+                            <?= /* @noEscape */ $field->render($form->getNamespace()) ?>
+
+                            <?php if ($magewire->hasError($field->getId())): ?>
+                                <?= /** @noEscape */ $magewire->getError($field->getId()) ?>
+                            <?php endif ?>
+                        </div>
+                    <?php endif ?>
+                <?php endforeach ?>
+            <?php endif ?>
+
+            <?= /** @noEscape */ $block->getChildHtml('address-form.after') ?>
+        </div>
+
+        <?php if ($magewire->canSaveToAddressBook()): ?>
+            <div class="bg-gray-100 px-6 py-4 rounded-lg flex flex-col space-y-6">
+                <label class="inline-flex items-center mb-0 cursor-pointer" for="save-address">
+                    <input id="save-address"
+                           type="checkbox"
+                           name="save-address"
+                           wire:model.defer="address.save"
+                    />
+
+                    <span class="ml-4 text-gray-700 font-bold">
+                        <?= $escaper->escapeHtml(__('Save in address book')) ?>
+                    </span>
+                </label>
+            </div>
+        <?php endif ?>
+
+        <div class="flex space-x-4 items-center">
+            <button type="button"
+                    class="btn btn-primary"
+                    x-on:click="validate().then(() => $wire.submit()).catch(() => {})"
+                    wire:loading.attr="disabled"
+            >
+                <?= $escaper->escapeHtml(__('Save')) ?>
+            </button>
+
+            <button type="button"
+                    class="btn btn-secondary"
+                    x-on:click="window.hyva.modal.pop()"
+            >
+                <?= $escaper->escapeHtml(__('Cancel')) ?>
+            </button>
+        </div>
+    </form>
+</div>
+
+<script>
+    (function () {
+        function cleanupModal() {
+            // Restore body
+            document.body.classList.remove(
+                '_has-modal',
+                'overflow-hidden',
+                '_scroll-lock',
+                'modal-open'
+            );
+            document.body.style.overflow = '';
+            document.body.style.pointerEvents = '';
+            document.documentElement.style.overflow = '';
+
+            // Target every possible overlay selector used by Hyvä/Magento
+            const selectors = [
+                '.modal-custom-overlay',
+                '.modals-overlay',
+                '._modal-overlay',
+                '.modal-backdrop',
+                '.hyva-modal-overlay',
+                '.modal-slide-overlay',
+                '[data-role="modal-overlay"]',
+                '[x-ref="overlay"]',
+                '.fixed.inset-0',
+                '[aria-modal="true"] ~ div',
+            ];
+
+            document.querySelectorAll(selectors.join(',')).forEach(function (el) {
+                el.style.pointerEvents = 'none';
+                el.style.zIndex = '-1';
+                el.style.display = 'none';
+                try { el.remove(); } catch(e) {}
+            });
+        }
+
+        // Hyvä modal close event
+        window.addEventListener('modal-closed', function () {
+            setTimeout(cleanupModal, 50);
+        });
+
+        // Catch clicking outside the modal (on backdrop)
+        document.addEventListener('click', function (e) {
+            var el = e.target;
+            var isBackdrop =
+                el.classList.contains('modal-custom-overlay') ||
+                el.classList.contains('modals-overlay') ||
+                el.classList.contains('modal-backdrop') ||
+                el.classList.contains('hyva-modal-overlay') ||
+                el.classList.contains('modal-slide-overlay') ||
+                el.getAttribute('data-role') === 'modal-overlay' ||
+                el.getAttribute('x-ref') === 'overlay' ||
+                (el.tagName === 'DIV' && el.classList.contains('fixed') && el.classList.contains('inset-0'));
+
+            if (isBackdrop) {
+                setTimeout(cleanupModal, 100);
+            }
+        }, true);
+
+        // Fallback: watch for modal disappearing from DOM
+        var observer = new MutationObserver(function (mutations) {
+            mutations.forEach(function (mutation) {
+                mutation.removedNodes.forEach(function (node) {
+                    if (node.nodeType === 1) {
+                        var isModal =
+                            node.classList && (
+                                node.classList.contains('modal-slide') ||
+                                node.classList.contains('modal-popup') ||
+                                node.classList.contains('hyva-modal') ||
+                                node.getAttribute && node.getAttribute('role') === 'dialog'
+                            );
+                        if (isModal) {
+                            setTimeout(cleanupModal, 100);
+                        }
+                    }
+                });
+            });
+        });
+
+        observer.observe(document.body, { childList: true, subtree: true });
+    })();
+</script>

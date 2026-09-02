@@ -1,0 +1,107 @@
+<?php
+declare(strict_types=1);
+
+use Hyva\Theme\Model\ViewModelRegistry;
+use Hyva\Theme\ViewModel\ProductPage;
+use Magento\Catalog\Model\Product;
+use Magento\Framework\View\Element\Template;
+
+/** @var Template $block */
+/** @var ViewModelRegistry $viewModels */
+/** @var ProductPage $productViewModel */
+$productViewModel = $viewModels->require(ProductPage::class);
+
+/** @var Product $product */
+$product   = $productViewModel->getProduct();
+$productId = (int) $product->getId();
+$sliderId  = 'msi_' . $productId;
+$endpoint  = $block->getUrl('ahy_themecustomization/index/moreSellerItems', ['_query' => ['product_id' => $productId]]);
+?>
+
+<div id="<?= $block->escapeHtmlAttr($sliderId) ?>-container" data-msi-endpoint="<?= $block->escapeUrl($endpoint) ?>"></div>
+
+<script>
+(function() {
+    var sliderId    = '<?= /* @noEscape */ $sliderId ?>';
+    var containerId = sliderId + '-container';
+
+    function initSwiperWhenReady() {
+        if (typeof Swiper === 'undefined') {
+            setTimeout(initSwiperWhenReady, 100);
+            return;
+        }
+        new Swiper('.' + sliderId + '-swiper', {
+            slidesPerView: 'auto',
+            spaceBetween: 0,
+            freeMode: true,
+            grabCursor: true,
+            scrollbar: {
+                el: '#' + sliderId + ' .swiper-scrollbar',
+                draggable: true,
+                snapOnRelease: false,
+            },
+            mousewheel: false,
+            keyboard: { enabled: true },
+        });
+    }
+
+    function loadMSI() {
+        var container = document.getElementById(containerId);
+        if (!container) return;
+        var url = container.getAttribute('data-msi-endpoint');
+        fetch(url, { credentials: 'same-origin' })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (!data || !data.success || !data.html) return;
+                container.innerHTML = data.html;
+                window.__ahySliderCfg = window.__ahySliderCfg || {};
+                window.__ahySliderCfg[sliderId] = data.cfgProducts || [];
+                initSwiperWhenReady();
+            })
+            .catch(function() {});
+    }
+
+    if (document.readyState === 'complete') {
+        loadMSI();
+    } else {
+        window.addEventListener('load', loadMSI);
+    }
+})();
+
+if (typeof ahySliderOpenModal === 'undefined') {
+    function ahySliderOpenModal(btn) {
+        var pid = parseInt(btn.getAttribute('data-cfg-pid'), 10);
+        var sid = btn.getAttribute('data-slider-id');
+        var list = (window.__ahySliderCfg && window.__ahySliderCfg[sid]) || [];
+        var product = list.find(function(p) {
+            return parseInt(p.product_id || p.id, 10) === pid;
+        });
+        if (!product) return;
+        window.dispatchEvent(new CustomEvent('ahy-cfg-modal-open', { detail: product }));
+    }
+}
+
+if (typeof ahyMsiAddToCart === 'undefined') {
+    window.ahyMsiAddToCart = function(btn) {
+        var productId = btn.dataset.productId;
+        var url = btn.dataset.atcUrl;
+        var fd = new FormData();
+        fd.append('product', productId);
+        fd.append('qty', 1);
+        fd.append('form_key', hyva.getFormKey());
+        btn.disabled = true;
+        btn.style.opacity = '0.6';
+        fetch(url, { method: 'POST', body: fd, credentials: 'same-origin' })
+            .then(function(r) {
+                if (r.ok || r.redirected) {
+                    window.dispatchEvent(new CustomEvent('reload-customer-section-data'));
+                    window.dispatchEvent(new CustomEvent('toggle-cart'));
+                }
+            })
+            .finally(function() {
+                btn.disabled = false;
+                btn.style.opacity = '1';
+            });
+    }
+}
+</script>

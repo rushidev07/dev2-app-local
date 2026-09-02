@@ -1,0 +1,119 @@
+<?php
+/**
+ * Everest header search input — MINIMAL.
+ *
+ * Rewritten 2026-08: the previous 2,008-line version was a complete parallel
+ * search UI (initMiniSearch + ahyModalSearch + ahyCfgModal + a full-screen
+ * #ahyModal) wired to the now-disabled FalcoSense_Search module. It competed
+ * with Ahy_SmartSearchLuma's own Shadow-DOM widget for the same input, which is
+ * why two overlays opened and the header looked broken.
+ *
+ * This file now renders ONLY the input. All search behaviour — the type-ahead
+ * overlay and the results page — is owned by Ahy_SmartSearchLuma:
+ *   - view/frontend/web/js/widget/search-attach.js  (attaches to #search_mini_form input[name="q"])
+ *   - the form's GET submit goes straight to /fs/search?q=... (works with JS off too)
+ *
+ * Keep in sync with Ahy_SmartSearchLuma: the module looks for the input by
+ * `#search_mini_form input[name="q"]`. Do not rename those.
+ *
+ * @var Magento\Framework\Escaper $escaper
+ * @var Magento\Framework\View\Element\Template $block
+ */
+
+declare(strict_types=1);
+
+use Magento\Framework\Escaper;
+use Magento\Framework\View\Element\Template;
+use Magento\Search\Helper\Data as SearchHelper;
+
+/** @var Escaper $escaper */
+/** @var Template $block */
+/** @var SearchHelper $helper */
+$helper = $this->helper(SearchHelper::class);
+
+$fsSearchUrl = $block->getUrl('fs/search');
+$qParam      = $helper->getQueryParamName();
+?>
+<style>
+/* ─────────────────────────────────────────────────────────────────────────────
+ * TEMPORARY global CSS patch. The theme's compiled styles.css was built with
+ * grid-template-columns:repeat(1) at every breakpoint for the multi-column
+ * layout selectors, which breaks the sidebar on pages like /customer/account/.
+ * These rules restore the correct columns for normal pages while keeping the
+ * FalcoSense full-width listing pages single-column. Move this into the theme's
+ * real CSS and delete it from here once styles.css is rebuilt correctly.
+ * ───────────────────────────────────────────────────────────────────────────── */
+@media (min-width:640px){
+    .page-layout-2columns-left .columns,.page-layout-2columns-right .columns,.page-layout-3columns .columns{grid-template-columns:repeat(2,minmax(0,1fr)) !important}
+    body.catalog-category-view.page-layout-2columns-left .columns,body.catalog-category-view.page-layout-2columns-right .columns,body.catalog-category-view.page-layout-3columns .columns{grid-template-columns:repeat(1,minmax(0,1fr)) !important}
+    body.catalogsearch-result-index.page-layout-2columns-left .columns,body.catalogsearch-result-index.page-layout-2columns-right .columns,body.catalogsearch-result-index.page-layout-3columns .columns{grid-template-columns:repeat(1,minmax(0,1fr)) !important}
+}
+@media (min-width:768px){
+    .page-layout-2columns-left .columns,.page-layout-2columns-right .columns,.page-layout-3columns .columns{grid-template-columns:repeat(3,minmax(0,1fr)) !important}
+    body.catalog-category-view.page-layout-2columns-left .columns,body.catalog-category-view.page-layout-2columns-right .columns,body.catalog-category-view.page-layout-3columns .columns{grid-template-columns:repeat(1,minmax(0,1fr)) !important}
+    body.catalogsearch-result-index.page-layout-2columns-left .columns,body.catalogsearch-result-index.page-layout-2columns-right .columns,body.catalogsearch-result-index.page-layout-3columns .columns{grid-template-columns:repeat(1,minmax(0,1fr)) !important}
+}
+@media (min-width:1024px){
+    .page-layout-2columns-left .columns,.page-layout-2columns-right .columns,.page-layout-3columns .columns{grid-template-columns:repeat(4,minmax(0,1fr)) !important}
+    .page-layout-2columns-left .columns .main,.page-layout-2columns-right .columns .main{grid-column:span 3/span 3 !important}
+    body.catalog-category-view.page-layout-2columns-left .columns,body.catalog-category-view.page-layout-2columns-right .columns,body.catalog-category-view.page-layout-3columns .columns{grid-template-columns:repeat(1,minmax(0,1fr)) !important}
+    body.catalog-category-view.page-layout-2columns-left .columns .main,body.catalog-category-view.page-layout-2columns-right .columns .main{grid-column:unset !important}
+    body.catalogsearch-result-index.page-layout-2columns-left .columns,body.catalogsearch-result-index.page-layout-2columns-right .columns,body.catalogsearch-result-index.page-layout-3columns .columns{grid-template-columns:repeat(1,minmax(0,1fr)) !important}
+    body.catalogsearch-result-index.page-layout-2columns-left .columns .main,body.catalogsearch-result-index.page-layout-2columns-right .columns .main{grid-column:unset !important}
+}
+
+/* The input itself — matches the previous Everest styling (white rounded pill). */
+#search_mini_form { position: relative; }
+#search_mini_form input[name="<?= $escaper->escapeHtmlAttr($qParam) ?>"] {
+    width: 100%;
+    padding: 0.75rem 1rem 0.75rem 1.5rem;
+    line-height: 1.5;
+    color: #1f2937;
+    background: #ffffff;
+    border: 1px solid transparent;
+    border-radius: 9999px;
+    appearance: none;
+    transition: box-shadow .15s ease;
+}
+#search_mini_form input[name="<?= $escaper->escapeHtmlAttr($qParam) ?>"]::placeholder { color: #111827; opacity: .55; }
+#search_mini_form input[name="<?= $escaper->escapeHtmlAttr($qParam) ?>"]:focus {
+    outline: none;
+    border-color: transparent;
+    box-shadow: 0 0 0 3px rgba(13, 47, 71, .15);
+}
+#search_mini_form .fs-search-submit {
+    position: absolute; top: 50%; right: .5rem; transform: translateY(-50%);
+    display: flex; align-items: center; justify-content: center;
+    width: 2.25rem; height: 2.25rem; border: 0; border-radius: 9999px;
+    background: transparent; color: #0d2f47; cursor: pointer;
+}
+#search_mini_form .fs-search-submit:hover { color: #16405c; }
+</style>
+
+<div class="container px-0 py-2 mx-auto text-black">
+    <form class="form minisearch relative"
+          id="search_mini_form"
+          action="<?= $escaper->escapeUrl($fsSearchUrl) ?>"
+          method="get"
+          role="search">
+
+        <label class="hidden" for="search"><?= $escaper->escapeHtml(__('Search')) ?></label>
+
+        <input id="search"
+               type="text"
+               name="<?= $escaper->escapeHtmlAttr($qParam) ?>"
+               value="<?= /* @noEscape */ $helper->getEscapedQueryText() ?>"
+               placeholder="<?= $escaper->escapeHtmlAttr(__('Search for products')) ?>"
+               maxlength="<?= $escaper->escapeHtmlAttr($helper->getMaxQueryLength()) ?>"
+               autocomplete="off"
+               aria-label="<?= $escaper->escapeHtmlAttr(__('Search for products')) ?>" />
+
+        <button type="submit" class="fs-search-submit" aria-label="<?= $escaper->escapeHtmlAttr(__('Search')) ?>">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <circle cx="11" cy="11" r="7"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+        </button>
+    </form>
+</div>

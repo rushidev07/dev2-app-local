@@ -1,0 +1,19 @@
+<?php
+namespace Ahy\ThemeCustomization\CustomerData;
+
+class DefaultItem extends \Magento\Checkout\CustomerData\DefaultItem
+{
+    private const FALLBACK_IMAGE = 'https://static.everest.com/media/.thumbswysiwyg/everest-logo_2_.png';
+
+    protected function doGetItemData()
+    {
+        // Uses Magento's native mini_cart_product_thumbnail cache (parent::doGetItemData()) —
+        // previously overwritten here with a falcosense CDN URL; reverted to the native cache
+        // so mini-cart shares the same resized/cached images as the rest of the site.
+        $data = parent::doGetItemData();
+        // Parent's array has no fallback_src; the template's @error handler needs a real one.
+        $data['product_image']['fallback_src'] = self::FALLBACK_IMAGE;
+
+        return $data;
+    }
+}

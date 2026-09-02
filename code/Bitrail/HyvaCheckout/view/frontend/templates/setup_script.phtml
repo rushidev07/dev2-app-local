@@ -1,0 +1,8 @@
+<?php
+$nonceCode = \BitRail\PaymentGateway\Gateway\Http\Client\ClientMock::getNonceCode();
+$vendorJsUrl = $block->getViewFileUrl('BitRail_PaymentGateway::js/view/payment/bitrail_vendor.js');
+?>
+
+<div id="bitrail-hyva-setup" data-nonce-code="<?= $block->escapeHtmlAttr($nonceCode) ?>"
+    data-vendor-js-url="<?= $block->escapeHtmlAttr($vendorJsUrl) ?>"></div>
+<script src="<?= $block->getViewFileUrl('Bitrail_HyvaCheckout::js/setup_script.js') ?>"></script>

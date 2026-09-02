@@ -1,0 +1,71 @@
+<?php
+declare(strict_types=1);
+
+namespace FalcoSense\Search\Model\StyleConfig;
+
+use Magento\Framework\App\ResourceConnection;
+use Magento\Store\Model\ScopeInterface;
+use Magento\Store\Model\StoreManagerInterface;
+
+/**
+ * Resolves an effective style attribute value with store -> website -> default scope fallback.
+ */
+class Reader
+{
+    public function __construct(
+        private readonly ResourceConnection $resourceConnection,
+        private readonly StoreManagerInterface $storeManager
+    ) {
+    }
+
+    public function getValue(string $componentCode, string $attributeCode): ?string
+    {
+        $connection = $this->resourceConnection->getConnection();
+
+        $attribute = $connection->fetchRow(
+            $connection->select()
+                ->from(['a' => $this->resourceConnection->getTableName('falcosense_style_attribute')], ['attribute_id', 'default_value'])
+                ->join(
+                    ['c' => $this->resourceConnection->getTableName('falcosense_style_component')],
+                    'c.component_id = a.component_id',
+                    []
+                )
+                ->where('c.code = ?', $componentCode)
+                ->where('a.code = ?', $attributeCode)
+        );
+
+        if (!$attribute) {
+            return null;
+        }
+
+        foreach ($this->getScopeCandidates() as [$scope, $scopeId]) {
+            $value = $connection->fetchOne(
+                $connection->select()
+                    ->from($this->resourceConnection->getTableName('falcosense_style_value'), 'value')
+                    ->where('attribute_id = ?', $attribute['attribute_id'])
+                    ->where('scope = ?', $scope)
+                    ->where('scope_id = ?', $scopeId)
+            );
+
+            if ($value !== false && $value !== null) {
+                return (string)$value;
+            }
+        }
+
+        return $attribute['default_value'];
+    }
+
+    /**
+     * @return array<int, array{0: string, 1: int}>
+     */
+    private function getScopeCandidates(): array
+    {
+        $store = $this->storeManager->getStore();
+
+        return [
+            [ScopeInterface::SCOPE_STORES, (int)$store->getId()],
+            [ScopeInterface::SCOPE_WEBSITES, (int)$store->getWebsiteId()],
+            ['default', 0],
+        ];
+    }
+}

@@ -1,0 +1,15 @@
+<?xml version="1.0" ?>
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="urn:magento:framework:Event/etc/events.xsd">
+    <event name="hyva_checkout_ahy_booted">
+        <observer name="ahy_themecustomization_observer_frontend_hyva_checkoutahybooted_hyva_checkout_ahy_booted" instance="Ahy\ThemeCustomization\Observer\Frontend\Hyva\CheckoutAhyBooted"/>
+    </event>
+    
+    <event name="sales_order_place_after">
+        <observer name="ahy_couponfix_order" instance="Ahy\ThemeCustomization\Observer\SalesOrderPlaceAfter"/>
+    </event>
+
+    <!-- <event name="controller_action_predispatch_catalog_product_view">
+        <observer name="ahy_redirect_seller_product" instance="Ahy\ThemeCustomization\Observer\RedirectToSeller" />
+    </event>
+ -->
+</config>

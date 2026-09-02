@@ -1,0 +1,46 @@
+<?php
+namespace Ahy\ThemeCustomization\CustomerData;
+
+use Ahy\ThemeCustomization\Helper\ProductImage;
+
+class DefaultItem extends \Magento\Checkout\CustomerData\DefaultItem
+{
+    private ProductImage $productImageHelper;
+
+    public function __construct(
+        \Magento\Catalog\Helper\Image $imageHelper,
+        \Magento\Msrp\Helper\Data $msrpHelper,
+        \Magento\Framework\UrlInterface $urlBuilder,
+        \Magento\Catalog\Helper\Product\ConfigurationPool $configurationPool,
+        \Magento\Checkout\Helper\Data $checkoutHelper,
+        ProductImage $productImageHelper,
+        \Magento\Framework\Escaper $escaper = null,
+        \Magento\Catalog\Model\Product\Configuration\Item\ItemResolverInterface $itemResolver = null
+    ) {
+        parent::__construct(
+            $imageHelper, $msrpHelper, $urlBuilder,
+            $configurationPool, $checkoutHelper, $escaper, $itemResolver
+        );
+        $this->productImageHelper = $productImageHelper;
+    }
+
+    protected function doGetItemData()
+    {
+        $data = parent::doGetItemData();
+
+        $parentSku   = $this->item->getProduct()->getSku();
+        $childOption = $this->item->getOptionByCode('simple_product');
+        $sku         = $childOption ? $childOption->getProduct()->getSku() : $parentSku;
+
+        // Mini-cart images must come from Klevu only — never fall back to Magento's own media URL.
+        $klevuUrl = $this->productImageHelper->getUrlBySku($sku)
+                 ?: $this->productImageHelper->getUrlBySku($parentSku);
+
+        if ($klevuUrl) {
+            $data['product_image']['src']          = $klevuUrl;
+            $data['product_image']['fallback_src']  = $klevuUrl;
+        }
+
+        return $data;
+    }
+}

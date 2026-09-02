@@ -1,0 +1,29 @@
+<?php
+declare(strict_types=1);
+
+namespace FalcoSense\Search\Block;
+
+use FalcoSense\Search\Model\StyleConfig\Reader;
+use Magento\Framework\View\Element\Template;
+use Magento\Framework\View\Element\Template\Context;
+
+class ProductCard extends Template
+{
+    public function __construct(
+        Context $context,
+        private readonly Reader $styleConfigReader,
+        array $data = []
+    ) {
+        parent::__construct($context, $data);
+    }
+
+    public function getStyleValue(string $componentCode, string $attributeCode, string $default = ''): string
+    {
+        return $this->styleConfigReader->getValue($componentCode, $attributeCode) ?? $default;
+    }
+
+    public function getStyleImageUrl(string $componentCode, string $attributeCode): ?string
+    {
+        return $this->styleConfigReader->getImageUrl($componentCode, $attributeCode);
+    }
+}

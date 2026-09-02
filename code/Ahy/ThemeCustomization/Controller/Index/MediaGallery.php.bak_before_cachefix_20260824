@@ -1,0 +1,70 @@
+<?php
+declare(strict_types=1);
+
+namespace Ahy\ThemeCustomization\Controller\Index;
+
+use Magento\Framework\App\Action\Action;
+use Magento\Framework\App\Action\Context;
+use Magento\Framework\App\ResourceConnection;
+use Magento\Framework\Controller\Result\Json;
+use Magento\Framework\Controller\Result\JsonFactory;
+
+/**
+ * Replaces pub/media-gallery.php (a standalone script with hardcoded DB credentials, publicly
+ * web-accessible with no Magento bootstrap/ACL). Same request contract (sku/skus GET param,
+ * same JSON array-of-URLs response), but resolved via Magento's own DB connection instead.
+ */
+class MediaGallery extends Action
+{
+    public function __construct(
+        Context $context,
+        private readonly ResourceConnection $resourceConnection,
+        private readonly JsonFactory $resultJsonFactory
+    ) {
+        parent::__construct($context);
+    }
+
+    public function execute(): Json
+    {
+        $resultJson = $this->resultJsonFactory->create();
+        $resultJson->setHeader('Access-Control-Allow-Origin', '*');
+
+        $skusParam = $this->getRequest()->getParam('skus', $this->getRequest()->getParam('sku', ''));
+        $skus = array_values(array_filter(array_map('trim', explode(',', (string) $skusParam))));
+
+        if (empty($skus)) {
+            return $resultJson->setData([]);
+        }
+
+        $connection = $this->resourceConnection->getConnection();
+        $placeholders = implode(',', array_fill(0, count($skus), '?'));
+
+        $select = sprintf(
+            "SELECT mg.value
+             FROM %s p
+             JOIN %s mgvte ON mgvte.entity_id = p.entity_id
+             JOIN %s mg ON mg.value_id = mgvte.value_id
+             LEFT JOIN %s mgvv ON mgvv.value_id = mg.value_id AND mgvv.store_id = 0
+             WHERE p.sku IN (%s)
+               AND mg.media_type = 'image'
+               AND (mgvv.disabled IS NULL OR mgvv.disabled = 0)
+             ORDER BY COALESCE(mgvv.position, 999) ASC",
+            $this->resourceConnection->getTableName('catalog_product_entity'),
+            $this->resourceConnection->getTableName('catalog_product_entity_media_gallery_value_to_entity'),
+            $this->resourceConnection->getTableName('catalog_product_entity_media_gallery'),
+            $this->resourceConnection->getTableName('catalog_product_entity_media_gallery_value'),
+            $placeholders
+        );
+
+        try {
+            $rows = $connection->fetchCol($select, $skus);
+        } catch (\Exception $e) {
+            return $resultJson->setData([]);
+        }
+
+        $base = 'https://static.everest.com/media/catalog/product';
+        $images = array_values(array_unique(array_map(static fn ($path) => $base . $path, $rows)));
+
+        return $resultJson->setData($images);
+    }
+}

@@ -1,0 +1,36 @@
+<?php
+/** @var Klevu\FrontendJs\Block\Html\Head\JsIncludes $block */
+$jsIncludesUrls = $block->getJsIncludesUrls();
+$isHomePage = $block->getRequest()->getFullActionName() === 'cms_index_index';
+?>
+
+<?php foreach ($jsIncludesUrls as $jsIncludesUrl): ?>
+    <script type="text/javascript" src="<?= $block->escapeUrl($jsIncludesUrl) ?>"
+        <?php if ($isHomePage && $jsIncludesUrl === 'https://js.klevu.com/core/v2/klevu.js'): ?>
+            defer
+            onload="document.dispatchEvent(new Event('klevuLoaded'));"
+        <?php else: ?>
+            rel="preload" rel="dns-prefetch"
+        <?php endif; ?>
+    ></script>
+<?php endforeach; ?>
+
+<?php if ($isHomePage): ?>
+<script type="text/javascript" defer>
+    document.addEventListener('klevuLoaded', function() {
+        // Dynamically load Klevu Recs
+        var recsScript = document.createElement('script');
+        recsScript.type = 'text/javascript';
+        recsScript.src = 'https://js.klevu.com/recs/v2/klevu-recs.js';
+        recsScript.defer = true;
+        document.head.appendChild(recsScript);
+
+        // Dynamically load Quick-Search Lazyload (if needed)
+        var quickSearchLazy = document.createElement('script');
+        quickSearchLazy.type = 'text/javascript';
+        quickSearchLazy.src = 'https://js.klevu.com/theme/default/v2/quick-search-theme.lazyload.js';
+        quickSearchLazy.defer = true;
+        document.head.appendChild(quickSearchLazy);
+    });
+</script>
+<?php endif; ?>

@@ -1,0 +1,136 @@
+<?xml version="1.0"?>
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="urn:magento:module:Magento_Config:etc/system_file.xsd">
+    <system>
+
+        <tab id="ahy" translate="label" sortOrder="5">
+            <label>Ahy</label>
+        </tab>
+
+        <section id="smart_search" translate="label" sortOrder="20"
+                 showInDefault="1" showInWebsite="1" showInStore="1">
+            <label>FalcoSense</label>
+            <tab>ahy</tab>
+            <resource>FalcoSense_Search::config</resource>
+
+            <group id="general" translate="label" sortOrder="10"
+                   showInDefault="1" showInWebsite="1" showInStore="1">
+                <label>General Settings</label>
+
+                <field id="version_info" translate="label" sortOrder="1"
+                       showInDefault="1" showInWebsite="1" showInStore="1">
+                    <label></label>
+                    <frontend_model>FalcoSense\Search\Block\Adminhtml\System\Config\VersionInfo</frontend_model>
+                </field>
+
+                <field id="frontend_enabled" translate="label" type="select"
+                       sortOrder="5" showInDefault="1" showInWebsite="1" showInStore="1">
+                    <label>Enable Frontend UI</label>
+                    <comment>Controls the custom search overlay, category page, and product sliders. Disable to fall back to the store's native search and category layout.</comment>
+                    <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
+                </field>
+
+                <field id="enabled" translate="label" type="select"
+                       sortOrder="10" showInDefault="1" showInWebsite="1" showInStore="1">
+                    <label>Enable Sync</label>
+                    <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
+                </field>
+
+                <field id="realtime_sync_enabled" translate="label" type="select"
+                       sortOrder="11" showInDefault="1" showInWebsite="1" showInStore="1">
+                    <label>Enable Real-Time Sync</label>
+                    <comment>When enabled, product saves and stock changes are synced immediately. When disabled, only the cron sync runs.</comment>
+                    <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
+                    <depends>
+                        <field id="enabled">1</field>
+                    </depends>
+                </field>
+
+                <field id="endpoint_url" translate="label" type="text"
+                       sortOrder="20" showInDefault="1" showInWebsite="1" showInStore="1">
+                    <label>Platform Endpoint URL</label>
+
+                </field>
+
+                <field id="api_key" translate="label" type="password"
+                       sortOrder="30" showInDefault="1" showInWebsite="1" showInStore="1">
+                    <label>API Key</label>
+                    <comment>X-Api-Key sent to the platform with every ingest request</comment>
+                    <config_path>smart_search/general/api_key</config_path>
+                </field>
+
+                <field id="search_url" translate="label" type="text"
+                       sortOrder="35" showInDefault="1" showInWebsite="1" showInStore="1">
+                    <label>Search API URL</label>
+
+                </field>
+
+
+            </group>
+
+            <group id="add_to_cart_button" translate="label" sortOrder="15"
+                   showInDefault="1" showInWebsite="1" showInStore="1">
+                <label>Product Card: Add to Cart Button</label>
+
+                <field id="border_radius" translate="label" type="text"
+                       sortOrder="10" showInDefault="1" showInWebsite="1" showInStore="1">
+                    <label>Corner Roundness (px)</label>
+                    <comment>0 = square corners, 9999 = fully rounded pill shape. Applies to the header search Add/Options button.</comment>
+                    <backend_model>FalcoSense\Search\Model\Config\Backend\StyleValue</backend_model>
+                </field>
+
+                <field id="icon" translate="label" type="image"
+                       sortOrder="20" showInDefault="1" showInWebsite="1" showInStore="1">
+                    <label>Icon</label>
+                    <comment>Upload a PNG/SVG icon to replace the default cart icon on the Add button. Leave empty to keep the default.</comment>
+                    <backend_model>FalcoSense\Search\Model\Config\Backend\StyleImage</backend_model>
+                    <upload_dir config="system/filesystem/media">falcosense/icons</upload_dir>
+                    <base_url type="media">falcosense/icons</base_url>
+                </field>
+
+                <field id="button_style" translate="label" type="select"
+                       sortOrder="30" showInDefault="1" showInWebsite="1" showInStore="1">
+                    <label>Button Style</label>
+                    <comment>Applies to both the Add and Options buttons.</comment>
+                    <source_model>FalcoSense\Search\Model\Config\Source\ButtonStyle</source_model>
+                    <backend_model>FalcoSense\Search\Model\Config\Backend\StyleValue</backend_model>
+                </field>
+
+                <field id="label_text" translate="label" type="text"
+                       sortOrder="40" showInDefault="1" showInWebsite="1" showInStore="1">
+                    <label>Add Button Label Text</label>
+                    <comment>Shown on the Add button's idle state (simple products). Leave blank to keep the default ("Add"). Max 50 characters.</comment>
+                    <backend_model>FalcoSense\Search\Model\Config\Backend\StyleValue</backend_model>
+                </field>
+
+                <field id="options_label_text" translate="label" type="text"
+                       sortOrder="50" showInDefault="1" showInWebsite="1" showInStore="1">
+                    <label>Options Button Label Text</label>
+                    <comment>Shown on the Options button (configurable products). Leave blank to keep the default ("Options"). Max 50 characters.</comment>
+                    <backend_model>FalcoSense\Search\Model\Config\Backend\StyleValue</backend_model>
+                </field>
+
+            </group>
+
+<group id="tools" translate="label" sortOrder="20"
+                   showInDefault="1" showInWebsite="1" showInStore="1">
+                <label>Tools</label>
+
+                <field id="sync_status" translate="label" sortOrder="5"
+                       showInDefault="1" showInWebsite="1" showInStore="1">
+                    <label>Sync Status</label>
+                    <frontend_model>FalcoSense\Search\Block\Adminhtml\System\Config\SyncStatus</frontend_model>
+                </field>
+
+                <field id="full_sync_button" translate="label" sortOrder="10"
+                       showInDefault="1" showInWebsite="1" showInStore="1">
+                    <label>Full Product Sync</label>
+                    <comment>Push all products to the search platform via ingest API (background). Monitor: tail -f var/log/smartsearch-full-sync.log</comment>
+                    <frontend_model>FalcoSense\Search\Block\Adminhtml\System\Config\SyncAllButton</frontend_model>
+                </field>
+
+            </group>
+        </section>
+
+    </system>
+</config>

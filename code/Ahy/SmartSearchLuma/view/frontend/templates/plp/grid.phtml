@@ -1,0 +1,28 @@
+<?php
+/**
+ * Light-DOM, crawlable listing page — the single-source render (Block\Plp\Grid).
+ * All markup is built in PlpRenderer; this template only frames it with the
+ * structured data + the one dynamic style rule (hiding the native grid shell),
+ * and only when there's something to show.
+ *
+ * The listing CSS lives in view/frontend/web/css/plp.css, loaded globally in
+ * default.xml — so a fragment injected onto a page that never rendered this
+ * template (the full-page type-ahead takeover) is styled too.
+ *
+ * @var \Ahy\SmartSearchLuma\Block\Plp\Grid $block
+ * @var \Magento\Framework\Escaper $escaper
+ */
+if (!$block->isActive()) {
+    return;
+}
+$nativeSelector = $block->getNativeGridSelector();
+?>
+<?= /* @noEscape */ $block->getJsonLdHtml() ?>
+<?php if ($nativeSelector !== ''): ?>
+<style>
+    /* Native grid shell hidden — CategoryListPlugin emptied its collection; this
+       hides the leftover toolbar for no-JS visitors and crawlers. */
+    <?= /* @noEscape (sanitised to selector-safe chars in the block) */ $nativeSelector ?> { display: none !important; }
+</style>
+<?php endif; ?>
+<?= /* @noEscape */ $block->getGridHtml() ?>

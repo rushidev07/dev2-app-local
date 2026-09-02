@@ -1,0 +1,51 @@
+<?xml version="1.0"?>
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="urn:magento:framework:App/etc/routes.xsd">
+    <router id="standard">
+        <route id="smsl" frontName="smsl">
+            <module name="Ahy_SmartSearchLuma"/>
+        </route>
+        <!--
+            The "catalogsearch" route override (Ahy\SmartSearchLuma\Controller\Result\Index
+            replacing Magento_CatalogSearch's own controller) is temporarily disabled here.
+            It triggers a fatal "Undefined array key 1" in Magento\Framework\View\Layout\
+            Generator\Block::generateBlock() on this environment — Controller\Result\Index's
+            early $page->getConfig()->getTitle() call forces layout generation at a point in
+            the request lifecycle the stock controller doesn't, and that exposes what looks
+            like a pre-existing malformed/incomplete scheduled-structure element somewhere in
+            the catalogsearch_result_index layout, not something introduced by this override
+            itself. Re-enable once that root cause is found — reverting to the stock
+            Magento_CatalogSearch controller has no effect on whether the FalcoSense widget
+            works, since Bootstrap::resolvePageType() and the widget's mount depend on the
+            resolved layout handle, not which controller class serves the route.
+        -->
+        <!--
+        <route id="catalogsearch" frontName="catalogsearch">
+            <module name="Ahy_SmartSearchLuma" before="Magento_CatalogSearch"/>
+        </route>
+        -->
+        <!--
+            Dedicated short "fs/search" URL for the header search form's results page,
+            so the visible address bar reads /fs/search?q=... instead of
+            /catalogsearch/result/?q=.... Same underlying page either way (see
+            fs_search_index.xml) — this exists for a consistent, branded URL on every
+            install, not something specific to any one client.
+
+            Route id is deliberately "fs", matching frontName, not "fs_search" —
+            Magento builds the dispatched full action name as
+            {route id}_{controller folder}_{action}, so a route id of "fs_search"
+            combined with the Controller/Search/Index.php folder produces
+            "fs_search_search_index", not "fs_search_index". Every place that
+            depends on the full action name being exactly "fs_search_index" —
+            this route's own fs_search_index.xml layout handle,
+            Bootstrap::resolvePageType(), PageContext::ACTIONS_SEARCH, and the
+            controller_action_postdispatch_fs_search_index event in events.xml —
+            silently never fired while the route id was "fs_search". Keep the id
+            equal to the frontName here so the full action name comes out to
+            exactly "fs_search_index" as every one of those already assumes.
+        -->
+        <route id="fs" frontName="fs">
+            <module name="Ahy_SmartSearchLuma"/>
+        </route>
+    </router>
+</config>
