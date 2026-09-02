@@ -94,7 +94,7 @@ $addToCartLabelJs = $block->escapeJs($addToCartLabel);
                                     </button>
                                 </template>
                                 <template x-if="product.type === 'configurable'">
-                                    <button @click.prevent="$dispatch('ahy-cfg-modal-open', product)"
+                                    <button @click.prevent="window.dispatchEvent(new CustomEvent('ahy-cfg-modal-open', {detail: product, bubbles: true}))"
                                         class="flex items-center border-2 border-ahy-blue <?= $addToCartColorClasses ?> px-3 py-1.5 text-sm font-bold"
                                         style="border-radius: <?= $addToCartBorderRadius ?>px">
                                         <?= $block->escapeHtml($addToCartOptionsLabel) ?>
