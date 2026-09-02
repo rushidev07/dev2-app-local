@@ -13,20 +13,25 @@ use FalcoSense\Search\Service\SearchTokenService;
 use Psr\Log\LoggerInterface;
 
 /**
- * Server-side adapter to the FalcoSense platform's /api/v1/products endpoint,
- * for the search results page's canonical (page 1, no filters, default sort)
- * view only — this is what makes real SSR possible: today, this exact API
- * call only ever happens from the browser (search/results.phtml's Alpine
- * `fetch()`). This class makes the identical call from PHP, before the page
- * ever reaches the browser, using the same params so the two code paths stay
- * in sync by construction rather than by convention.
+ * Server-side adapter to the FalcoSense platform's /api/v1/products endpoint
+ * — this is what makes real SSR possible: today, this exact API call only
+ * ever happens from the browser (search/results.phtml's and
+ * category/results.phtml's own Alpine `fetch()`). This class makes the
+ * identical call from PHP, before the page ever reaches the browser, using
+ * the same params so the server and client code paths stay in sync by
+ * construction rather than by convention.
  *
- * Params mirror search/results.phtml's fetch() (q, page, per_page,
- * include_variants, geo_state, bypass_spell — platform_store_id
- * deliberately omitted, same reasoning as the JS: getPlatformStoreId()'s
- * position-based calculation is wrong for single-store-view sites).
- * Category support (category/category_ids/sort params) is intentionally not
- * built here yet — out of scope for this pass, search only.
+ * Search params mirror search/results.phtml's fetch() (q, page, per_page,
+ * include_variants — platform_store_id deliberately omitted, same reasoning
+ * as the JS: getPlatformStoreId()'s position-based calculation is wrong for
+ * single-store-view sites). Search stays scoped to the canonical view only
+ * (see PageContext::buildSearchQuery).
+ *
+ * Category params mirror category/results.phtml's fetch() (category,
+ * category_ids, page, per_page, sort — platform_store_id omitted for the
+ * same reason). Category renders for every page/sort, not just canonical
+ * (see PageContext::buildCategoryQuery) — filters/price aren't included
+ * since category's own client never encodes them in the URL either.
  */
 class FalcoSensePlpProvider implements PlpDataProviderInterface
 {
@@ -41,6 +46,15 @@ class FalcoSensePlpProvider implements PlpDataProviderInterface
     }
 
     public function fetch(PlpQuery $query): PlpResult
+    {
+        if ($query->isCategory()) {
+            return $this->fetchCategory($query);
+        }
+
+        return $this->fetchSearch($query);
+    }
+
+    private function fetchSearch(PlpQuery $query): PlpResult
     {
         if (!$query->isSearch() || $query->searchQuery === null || trim($query->searchQuery) === '') {
             return PlpResult::unavailable();
@@ -91,6 +105,72 @@ class FalcoSensePlpProvider implements PlpDataProviderInterface
         $this->logger->info(sprintf(
             '[SmartSearch][BENCH] Total provider time (round-trip + mapping) for "%s": %dms',
             $query->searchQuery,
+            (int) round((microtime(true) - $benchStart) * 1000)
+        ));
+
+        return $result;
+    }
+
+    private function fetchCategory(PlpQuery $query): PlpResult
+    {
+        $hasName = $query->categoryName !== null && trim($query->categoryName) !== '';
+        if (!$query->isCategory() || (!$hasName && !$query->categoryId)) {
+            return PlpResult::unavailable();
+        }
+
+        $url = $this->helper->buildPlatformUrl('/api/v1/products', $query->storeId);
+        if ($url === '') {
+            $this->logger->warning('[SmartSearch][PLP] Platform endpoint not configured — cannot render SSR grid.');
+            return PlpResult::unavailable();
+        }
+
+        $token = $this->tokenService->getToken($query->storeId);
+        if ($token === '') {
+            $this->logger->warning('[SmartSearch][PLP] No search token available — cannot render SSR grid.');
+            return PlpResult::unavailable();
+        }
+
+        $params = [
+            'search_token' => $token,
+            'category'     => (string) $query->categoryName,
+            'page'         => $query->page,
+            'per_page'     => $query->perPage,
+        ];
+        // Two categories can share the same name, so category_ids scopes the
+        // match to this exact category — same reasoning as the client-side
+        // fetch() in category/results.phtml.
+        if ($query->categoryId) {
+            $params['category_ids'] = $query->categoryId;
+        }
+        if ($query->sort !== 'relevance' && $query->sort !== '') {
+            $params['sort'] = $query->sort;
+        }
+
+        $benchStart = microtime(true);
+
+        try {
+            $decoded = $this->http->getJson(
+                $url,
+                $params,
+                [],
+                $this->helper->getPlpPlatformTimeoutMs($query->storeId)
+            );
+            $this->logger->info(sprintf(
+                '[SmartSearch][BENCH] Platform round-trip for category "%s" (p%d): %dms',
+                $query->categoryName,
+                $query->page,
+                (int) round((microtime(true) - $benchStart) * 1000)
+            ));
+        } catch (PlatformRequestException $e) {
+            $this->logger->warning('[SmartSearch][PLP] ' . $e->getMessage());
+            return PlpResult::unavailable();
+        }
+
+        $result = $this->mapResponse($decoded, $query);
+        $this->logger->info(sprintf(
+            '[SmartSearch][BENCH] Total provider time (round-trip + mapping) for category "%s" (p%d): %dms',
+            $query->categoryName,
+            $query->page,
             (int) round((microtime(true) - $benchStart) * 1000)
         ));
 

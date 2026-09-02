@@ -8,24 +8,61 @@ use Magento\Framework\View\Element\Template\Context;
 use Magento\Catalog\Model\Layer\Resolver as LayerResolver;
 use FalcoSense\Search\Helper\Data as SmartSearchHelper;
 use FalcoSense\Search\Service\SearchTokenService;
+use FalcoSense\Search\Api\PlpDataProviderInterface;
+use FalcoSense\Search\Model\Plp\PageContext;
+use FalcoSense\Search\Model\Plp\PlpResult;
 
 class Category extends Template
 {
     private SmartSearchHelper  $helper;
     private LayerResolver      $layerResolver;
     private SearchTokenService $tokenService;
+    private PageContext $pageContext;
+    private PlpDataProviderInterface $plpProvider;
+    private ?PlpResult $plpResult = null;
+    private bool $plpResolved = false;
 
     public function __construct(
         Context            $context,
         SmartSearchHelper  $helper,
         LayerResolver      $layerResolver,
         SearchTokenService $tokenService,
+        PageContext        $pageContext,
+        PlpDataProviderInterface $plpProvider,
         array              $data = []
     ) {
         parent::__construct($context, $data);
         $this->helper        = $helper;
         $this->layerResolver = $layerResolver;
         $this->tokenService  = $tokenService;
+        $this->pageContext   = $pageContext;
+        $this->plpProvider   = $plpProvider;
+    }
+
+    /**
+     * The server-rendered view of this category's product grid, for
+     * whatever page/sort the URL specifies — unlike search, this isn't
+     * restricted to the canonical view (see PageContext::buildCategoryQuery).
+     * Null when the platform returned nothing usable, or there's no
+     * resolvable category. Memoized since the template calls this more than
+     * once (the SSR grid markup, then the embedded JSON payload).
+     */
+    public function getPlpResult(): ?PlpResult
+    {
+        if ($this->plpResolved) {
+            return $this->plpResult;
+        }
+        $this->plpResolved = true;
+
+        $query = $this->pageContext->buildCategoryQuery();
+        if ($query === null) {
+            return null;
+        }
+
+        $result = $this->plpProvider->fetch($query);
+        $this->plpResult = $result->isUsable() ? $result : null;
+
+        return $this->plpResult;
     }
 
     public function getSearchApiUrl(): string

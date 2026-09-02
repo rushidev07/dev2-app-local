@@ -3,30 +3,45 @@
       xsi:noNamespaceSchemaLocation="urn:magento:framework:View/Layout/etc/page_configuration.xsd">
     <body>
         <referenceContainer name="content">
+            <!--
+                cacheable="false" on every block below — SSR now renders real,
+                per-request content here (varies by page/sort, and by which
+                category), so leaving this page eligible for Full Page Cache
+                would serve whichever response happened to be cached first for
+                a given URL to every subsequent visitor, regardless of the
+                current category/page/sort. Same fix already applied to the
+                search routes for the same reason.
+            -->
             <block class="FalcoSense\Search\Block\Category"
                    name="ahy_smartsearch_category"
                    template="FalcoSense_Search::category/results.phtml"
+                   cacheable="false"
                    before="-">
                 <block class="Magento\Framework\View\Element\Template"
                        name="ahy_smartsearch_category_zero_results"
                        as="zero_results"
-                       template="FalcoSense_Search::category/zero-results.phtml"/>
+                       template="FalcoSense_Search::category/zero-results.phtml"
+                       cacheable="false"/>
                 <block class="FalcoSense\Search\Block\ProductCard"
                        name="ahy_smartsearch_category_card_desktop"
                        as="product_card_desktop"
-                       template="FalcoSense_Search::category/product-card-desktop.phtml"/>
+                       template="FalcoSense_Search::category/product-card-desktop.phtml"
+                       cacheable="false"/>
                 <block class="FalcoSense\Search\Block\ProductCard"
                        name="ahy_smartsearch_category_card_mobile"
                        as="product_card_mobile"
-                       template="FalcoSense_Search::category/product-card-mobile.phtml"/>
+                       template="FalcoSense_Search::category/product-card-mobile.phtml"
+                       cacheable="false"/>
                 <block class="Magento\Framework\View\Element\Template"
                        name="ahy_smartsearch_category_filters_desktop"
                        as="filters_desktop"
-                       template="FalcoSense_Search::category/filters-desktop.phtml"/>
+                       template="FalcoSense_Search::category/filters-desktop.phtml"
+                       cacheable="false"/>
                 <block class="Magento\Framework\View\Element\Template"
                        name="ahy_smartsearch_category_filters_mobile"
                        as="filters_mobile"
-                       template="FalcoSense_Search::category/filters-mobile.phtml"/>
+                       template="FalcoSense_Search::category/filters-mobile.phtml"
+                       cacheable="false"/>
             </block>
         </referenceContainer>
 
