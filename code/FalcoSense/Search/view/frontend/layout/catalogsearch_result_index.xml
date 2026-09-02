@@ -3,30 +3,51 @@
       xsi:noNamespaceSchemaLocation="urn:magento:framework:View/Layout/etc/page_configuration.xsd">
     <body>
         <referenceContainer name="content">
+            <!--
+                cacheable="false" on every block below — without it, this page
+                (server-rendered per-query SSR content, added after this file
+                was first written) can be served from Magento's Full Page
+                Cache: whichever response happened to be cached first for a
+                given query (potentially from before SSR existed, or from a
+                moment the platform was briefly slow) gets served to every
+                subsequent visitor searching that same term, indefinitely,
+                regardless of how correct the current render logic is. The
+                header search form submits here (native /catalogsearch/result/,
+                intercepted by this module's route), so this is the actual
+                page most searches land on — fs_search_index.xml (direct
+                /fs/search/?q= navigation) already had this exact fix; this
+                brings the two routes to parity.
+            -->
             <block class="FalcoSense\Search\Block\Search"
                    name="ahy_smartsearch_search"
                    template="FalcoSense_Search::search/results.phtml"
+                   cacheable="false"
                    before="-">
                 <block class="FalcoSense\Search\Block\Search"
                        name="ahy_smartsearch_search_zero_results"
                        as="zero_results"
-                       template="FalcoSense_Search::search/zero-results.phtml"/>
+                       template="FalcoSense_Search::search/zero-results.phtml"
+                       cacheable="false"/>
                 <block class="FalcoSense\Search\Block\ProductCard"
                        name="ahy_smartsearch_search_card_desktop"
                        as="product_card_desktop"
-                       template="FalcoSense_Search::search/product-card-desktop.phtml"/>
+                       template="FalcoSense_Search::search/product-card-desktop.phtml"
+                       cacheable="false"/>
                 <block class="FalcoSense\Search\Block\ProductCard"
                        name="ahy_smartsearch_search_card_mobile"
                        as="product_card_mobile"
-                       template="FalcoSense_Search::search/product-card-mobile.phtml"/>
+                       template="FalcoSense_Search::search/product-card-mobile.phtml"
+                       cacheable="false"/>
                 <block class="Magento\Framework\View\Element\Template"
                        name="ahy_smartsearch_search_filters_desktop"
                        as="filters_desktop"
-                       template="FalcoSense_Search::search/filters-desktop.phtml"/>
+                       template="FalcoSense_Search::search/filters-desktop.phtml"
+                       cacheable="false"/>
                 <block class="Magento\Framework\View\Element\Template"
                        name="ahy_smartsearch_search_filters_mobile"
                        as="filters_mobile"
-                       template="FalcoSense_Search::search/filters-mobile.phtml"/>
+                       template="FalcoSense_Search::search/filters-mobile.phtml"
+                       cacheable="false"/>
             </block>
         </referenceContainer>
 
