@@ -58,6 +58,12 @@ class FalcoSensePlpProvider implements PlpDataProviderInterface
             return PlpResult::unavailable();
         }
 
+        // TEMPORARY benchmark instrumentation — isolates the module's own cost
+        // (platform round-trip + response mapping) from Magento's own bootstrap
+        // overhead, which every page pays regardless of FalcoSense. Remove once
+        // the module's contribution is confirmed.
+        $benchStart = microtime(true);
+
         try {
             $decoded = $this->http->getJson(
                 $url,
@@ -71,12 +77,24 @@ class FalcoSensePlpProvider implements PlpDataProviderInterface
                 [],
                 $this->helper->getPlpPlatformTimeoutMs($query->storeId)
             );
+            $this->logger->info(sprintf(
+                '[SmartSearch][BENCH] Platform round-trip for "%s": %dms',
+                $query->searchQuery,
+                (int) round((microtime(true) - $benchStart) * 1000)
+            ));
         } catch (PlatformRequestException $e) {
             $this->logger->warning('[SmartSearch][PLP] ' . $e->getMessage());
             return PlpResult::unavailable();
         }
 
-        return $this->mapResponse($decoded, $query);
+        $result = $this->mapResponse($decoded, $query);
+        $this->logger->info(sprintf(
+            '[SmartSearch][BENCH] Total provider time (round-trip + mapping) for "%s": %dms',
+            $query->searchQuery,
+            (int) round((microtime(true) - $benchStart) * 1000)
+        ));
+
+        return $result;
     }
 
     private function mapResponse(array $decoded, PlpQuery $query): PlpResult
