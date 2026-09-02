@@ -52,8 +52,20 @@ class Search extends Template
      * calls this more than once (the SSR grid markup, then the embedded
      * JSON payload).
      */
+    /**
+     * TEMPORARY A/B kill switch — flip to true to disable SSR for this exact
+     * page (falls straight through to the pre-existing client-side fetch(),
+     * nothing else changes) so its TTFB can be measured against the
+     * SSR-enabled numbers already recorded today. Revert to false once done.
+     */
+    private const AB_DISABLE_SSR = true;
+
     public function getPlpResult(): ?PlpResult
     {
+        if (self::AB_DISABLE_SSR) {
+            return null;
+        }
+
         if ($this->plpResolved) {
             return $this->plpResult;
         }
