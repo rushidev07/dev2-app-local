@@ -58,7 +58,7 @@ class Search extends Template
      * nothing else changes) so its TTFB can be measured against the
      * SSR-enabled numbers already recorded today. Revert to false once done.
      */
-    private const AB_DISABLE_SSR = true;
+    private const AB_DISABLE_SSR = false;
 
     public function getPlpResult(): ?PlpResult
     {
