@@ -89,7 +89,7 @@ class PageContext
             return false;
         }
 
-        foreach (['brand', 'price_min', 'price_max', 'sort'] as $param) {
+        foreach (['brand', 'price_min', 'price_max', 'sort', 'bypass_spell'] as $param) {
             if ((string) $this->request->getParam($param, '') !== '') {
                 return false;
             }
