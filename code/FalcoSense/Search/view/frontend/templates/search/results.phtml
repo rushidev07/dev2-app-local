@@ -8,6 +8,56 @@ $addToCartUrl = $block->escapeUrl($block->getUrl('checkout/cart/add'));
 $platformStoreId = (int) $block->getPlatformStoreId();
 $customerGeoState = $block->escapeJs($block->getCustomerGeoState());
 $searchQueryHtml = $block->escapeHtmlAttr($block->getSearchQuery());
+
+// Server-side rendered canonical view (page 1, no filters) — null whenever
+// this isn't that exact view, or the platform returned nothing usable. When
+// present, $ssrGrid/$ssrPayloadJson below give a no-JS visitor (and crawlers)
+// real product HTML in the initial response, and give Alpine a way to seed
+// its own state on load instead of always re-fetching what the server
+// already just fetched. Every filtered/sorted/paginated view, and any
+// fallback where this is null, is completely unaffected — Alpine's
+// fetch()/init() flow below still works exactly as it does today.
+$plpResult = $block->getPlpResult();
+
+$fmtPrice = static fn (float $p): string => '$' . number_format($p, 2);
+
+$renderSsrCard = function (\FalcoSense\Search\Model\Plp\PlpItem $item) use ($block, $fmtPrice): string {
+    $url = $item->urlKey !== '' ? '/' . $item->urlKey . '.html' : '#';
+    $href = $block->escapeUrl($url);
+    $name = $block->escapeHtml($item->name);
+    $img = $block->escapeUrl($item->imageUrl);
+    $seller = $block->escapeHtml($item->brand ?: 'The Everest Marketplace');
+
+    if ($item->price !== null && $item->hasDiscount()) {
+        $priceHtml = '<div class="text-ahy-red text-xs font-bold uppercase">Deal</div>'
+            . '<div class="flex items-baseline gap-2">'
+            . '<span class="text-2xl font-extrabold text-ahy-blue">' . $fmtPrice($item->specialPrice) . '</span>'
+            . '<span class="text-sm text-gray-400 line-through">' . $fmtPrice($item->price) . '</span>'
+            . '</div>';
+    } elseif ($item->price !== null) {
+        $fromLabel = $item->isConfigurable()
+            ? '<span class="capitalize text-ahy-red !font-bold !text-sm">From</span>'
+            : '';
+        $priceHtml = '<div class="flex flex-col items-baseline">' . $fromLabel
+            . '<span class="text-2xl font-extrabold text-ahy-blue">' . $fmtPrice($item->price) . '</span></div>';
+    } else {
+        $priceHtml = '<span class="capitalize !flex justify-center items-center w-full !rounded-full '
+            . '!bg-transparent !text-ahy-blue !text-sm !py-1.5 !px-2.5 font-bold !border-2 !border-ahy-blue">'
+            . 'See Options</span>';
+    }
+
+    return '<div class="bg-white relative flex flex-col group" '
+        . 'style="border-radius:var(--ahy-card-radius);border:var(--ahy-card-border);box-shadow:var(--ahy-card-shadow);">'
+        . '<a href="' . $href . '" class="block overflow-hidden">'
+        . '<img src="' . $img . '" alt="' . $name . '" width="244" height="244" loading="eager" '
+        . 'class="w-full object-contain object-center p-3" style="max-width:244px;height:244px;margin:0 auto;display:block" />'
+        . '</a>'
+        . '<div class="flex flex-col flex-1 px-4 pb-4">'
+        . '<a href="' . $href . '" class="line-clamp-2 !text-lg !font-extrabold text-ahy-blue leading-normal mt-1 h-[3.4rem]" title="' . $name . '">' . $name . '</a>'
+        . '<p class="text-xs text-gray-500 mt-1">Sold By ' . $seller . '</p>'
+        . '<div class="AhyPrice min-h-[5.5rem] flex flex-col !overflow-visible mt-1">' . $priceHtml . '</div>'
+        . '</div></div>';
+};
 ?>
 
 <script>
@@ -23,6 +73,25 @@ $searchQueryHtml = $block->escapeHtmlAttr($block->getSearchQuery());
 
 <script>if ('scrollRestoration' in history) { history.scrollRestoration = 'manual'; }</script>
 <script>(function () { var m = document.querySelector('.column.main'); if (m) m.style.minHeight = '1900px'; var pm = document.querySelector('.page-main'); if (pm) pm.style.background = '#efeadd'; })();</script>
+
+<?php if ($plpResult !== null): ?>
+<!--
+    Server-rendered canonical view — real product HTML, present in the raw
+    HTML response before any JS runs (this is what a no-JS visitor or a
+    crawler like GPTBot/ClaudeBot actually sees; today's CSR-only version has
+    nothing here at all). Removed by Alpine's init() the instant it boots
+    (see the <script> below) — for a JS-capable browser this is purely a
+    zero-flash first paint, not a second UI to keep in sync.
+-->
+<div id="fs-ssr-grid" class="w-full">
+    <div class="grid grid-cols-2 xl:grid-cols-3" style="gap:var(--ahy-grid-gap);">
+        <?php foreach ($plpResult->items as $item): ?>
+            <?= /* @noEscape */ $renderSsrCard($item) ?>
+        <?php endforeach; ?>
+    </div>
+</div>
+<script type="application/json" id="fs-ssr-payload"><?= /* @noEscape */ json_encode($plpResult->toArray(), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?></script>
+<?php endif; ?>
 
 <div x-data="ahySearchResults('<?= $productsApiUrl ?>', '<?= $searchToken ?>', '<?= $searchQuery ?>', <?= $platformStoreId ?>, '<?= $analyticsUrl ?>', '<?= $customerGeoState ?>')"
     x-init="init()"
@@ -426,6 +495,13 @@ $searchQueryHtml = $block->escapeHtmlAttr($block->getSearchQuery());
                 console.log('%c[FalcoSense PLP][search/results.phtml] build: scroll-fix-2026-08-14', 'color:#0d2f47;font-weight:bold;');
                 if (this._fetched) return;
                 this._fetched = true;
+
+                // The plain server-rendered grid (#fs-ssr-grid, see results.phtml above
+                // the x-data root) is a pre-JS fallback only — the moment Alpine boots,
+                // hand off entirely to Alpine's own rendering below, whether it seeds
+                // instantly from the embedded payload or falls through to a live fetch.
+                document.getElementById('fs-ssr-grid')?.remove();
+
                 window.addEventListener('ahy-token-refreshed', e => { this.searchToken = e.detail; });
                 const params = new URLSearchParams(window.location.search);
                 this.page = parseInt(params.get('p') || '1', 10);
@@ -438,6 +514,30 @@ $searchQueryHtml = $block->escapeHtmlAttr($block->getSearchQuery());
                 // reloaded page would send the same misspelled term back to the platform,
                 // which would just auto-correct it again and show the same prompt in a loop.
                 if (params.get('bypass_spell') === '1') this.bypassSpell = true;
+
+                // Seed from the server-rendered payload instead of re-fetching, but only
+                // for the exact canonical view it was rendered for (page 1, no sort/brand
+                // param, no bypass_spell) — any other URL state falls straight through to
+                // the normal fetch() below, completely unchanged.
+                const isCanonical = this.page === 1 && !sortParam && !brandParam && !this.bypassSpell;
+                const payloadEl = isCanonical ? document.getElementById('fs-ssr-payload') : null;
+                if (payloadEl) {
+                    try {
+                        const seed = JSON.parse(payloadEl.textContent);
+                        if (seed && seed.success) {
+                            this.results = seed.data || [];
+                            this.total = (seed.pagination && seed.pagination.total) || 0;
+                            this.pageSize = (seed.pagination && seed.pagination.per_page) || this.pageSize;
+                            this.totalPages = Math.max(1, Math.ceil(this.total / this.pageSize));
+                            this.apiFacets = seed.facets || [];
+                            this.buildFilters();
+                            this.loading = false;
+                            return;
+                        }
+                    } catch (e) {
+                        console.error('[SmartSearch] SSR payload parse error, falling back to fetch()', e);
+                    }
+                }
 
                 const startFetch = () => {
                     window.ahyTokenRefresh?.get().then(t => {
@@ -949,5 +1049,20 @@ $searchQueryHtml = $block->escapeHtmlAttr($block->getSearchQuery());
     @media (max-width: 640px){
         .ahy-filters-menu {width:100vw;transform:translateX(-50%);margin-left:50%;}
         .ahy-filters {flex-grow: 1; max-width: 300px;}
+    }
+
+    /* Targeted hardening for the new SSR grid only (#fs-ssr-grid) — this
+       module deliberately shares the theme's Tailwind classes rather than
+       isolating from them (unlike Ahy_SmartSearchLuma's `all: revert`
+       approach), which is intentional and stays as-is everywhere else. This
+       block-model-only !important guards just the one new element against
+       being silently squeezed by a theme layout rule, matching the same
+       narrow technique already used above for .ahy-filter-sidebar etc. —
+       not a blanket reset. */
+    #fs-ssr-grid {
+        box-sizing: border-box !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        margin: 0 !important;
     }
 </style>

@@ -9,6 +9,9 @@ use FalcoSense\Search\Helper\Data as SmartSearchHelper;
 use FalcoSense\Search\Service\SearchTokenService;
 use Magento\Customer\Model\Session as CustomerSession;
 use Magento\Directory\Model\RegionFactory;
+use FalcoSense\Search\Api\PlpDataProviderInterface;
+use FalcoSense\Search\Model\Plp\PageContext;
+use FalcoSense\Search\Model\Plp\PlpResult;
 
 class Search extends Template
 {
@@ -16,6 +19,10 @@ class Search extends Template
     private SearchTokenService $tokenService;
     private CustomerSession   $customerSession;
     private RegionFactory     $regionFactory;
+    private PageContext $pageContext;
+    private PlpDataProviderInterface $plpProvider;
+    private ?PlpResult $plpResult = null;
+    private bool $plpResolved = false;
 
     public function __construct(
         Context            $context,
@@ -23,6 +30,8 @@ class Search extends Template
         SearchTokenService $tokenService,
         CustomerSession    $customerSession,
         RegionFactory      $regionFactory,
+        PageContext        $pageContext,
+        PlpDataProviderInterface $plpProvider,
         array              $data = []
     ) {
         parent::__construct($context, $data);
@@ -30,6 +39,35 @@ class Search extends Template
         $this->tokenService    = $tokenService;
         $this->customerSession = $customerSession;
         $this->regionFactory   = $regionFactory;
+        $this->pageContext     = $pageContext;
+        $this->plpProvider     = $plpProvider;
+    }
+
+    /**
+     * The server-rendered canonical (page 1, no filters) view of the search
+     * results, or null when this isn't a canonical search request, the
+     * platform returned nothing usable, or the query is blank — in every
+     * "null" case, results.phtml falls back to exactly what it does today:
+     * Alpine's own client-side fetch() on load. Memoized since the template
+     * calls this more than once (the SSR grid markup, then the embedded
+     * JSON payload).
+     */
+    public function getPlpResult(): ?PlpResult
+    {
+        if ($this->plpResolved) {
+            return $this->plpResult;
+        }
+        $this->plpResolved = true;
+
+        $query = $this->pageContext->buildSearchQuery();
+        if ($query === null) {
+            return null;
+        }
+
+        $result = $this->plpProvider->fetch($query);
+        $this->plpResult = $result->isUsable() ? $result : null;
+
+        return $this->plpResult;
     }
 
     public function getSearchApiUrl(): string

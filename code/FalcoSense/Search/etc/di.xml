@@ -94,4 +94,12 @@
     </type>
 
     <preference for="Magento\Checkout\Model\Cart\ImageProvider" type="FalcoSense\Search\Model\Cart\ImageProvider"/>
+
+    <!-- Server-side PLP data Port — used only by Block\Search::getPlpResult()
+         to render the search page's canonical (page 1, no filters) view
+         before the page reaches the browser. Alpine's own client-side
+         fetch() in results.phtml is untouched and still handles every
+         filtered/sorted/paginated view. -->
+    <preference for="FalcoSense\Search\Api\PlpDataProviderInterface"
+                type="FalcoSense\Search\Service\Plp\FalcoSensePlpProvider"/>
 </config>

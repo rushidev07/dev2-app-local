@@ -45,6 +45,12 @@ class Data extends AbstractHelper
     private const XML_PATH_NR_HEADING       = 'smart_search/no_results_modal/section_heading';
     private const XML_PATH_NR_PRODUCT_COUNT = 'smart_search/no_results_modal/product_count';
 
+    // Sub-second budget for the server-side PLP render-path call to
+    // /api/v1/products — a slow response must be abandoned, not waited on,
+    // since it's blocking the page response itself (unlike the client-side
+    // fetch() in results.phtml, which can afford to be slower).
+    private const XML_PATH_PLP_TIMEOUT_MS = 'smart_search/plp/platform_timeout_ms';
+
     private ScopeConfigInterface $config;
     private WriterInterface $configWriter;
     private StoreManagerInterface $storeManager;
@@ -90,6 +96,12 @@ class Data extends AbstractHelper
     {
         $val = (int) $this->config->getValue(self::XML_PATH_PRODUCTS_PER_PAGE, ScopeInterface::SCOPE_STORE, $storeId);
         return $val > 0 ? $val : 12;
+    }
+
+    public function getPlpPlatformTimeoutMs(int|string|null $storeId = null): int
+    {
+        $val = (int) $this->config->getValue(self::XML_PATH_PLP_TIMEOUT_MS, ScopeInterface::SCOPE_STORE, $storeId);
+        return $val > 0 ? $val : 500;
     }
 
     public function getEventsEndpointUrl(int|string|null $storeId = null): string
