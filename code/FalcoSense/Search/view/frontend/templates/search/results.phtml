@@ -185,12 +185,22 @@ $renderSsrCard = function (\FalcoSense\Search\Model\Plp\PlpItem $item) use ($blo
     nothing here at all). Removed by Alpine's init() the instant it boots
     (see the <script> below) — for a JS-capable browser this is purely a
     zero-flash first paint, not a second UI to keep in sync.
+
+    Wrapped in the SAME flex layout (ahy-filter-layout + an empty
+    ahy-filter-sidebar-width aside) the real Alpine grid below renders inside
+    — without this the grid had no sidebar column to share width with and
+    rendered full-bleed/oversized for the brief pre-Alpine window, which
+    looked like a layout glitch rather than a clean first paint (same fix
+    applied to category/results.phtml's identical structure).
 -->
-<div id="fs-ssr-grid" class="w-full">
-    <div class="grid grid-cols-2 xl:grid-cols-3" style="gap:var(--ahy-grid-gap);">
-        <?php foreach ($plpResult->items as $item): ?>
-            <?= /* @noEscape */ $renderSsrCard($item) ?>
-        <?php endforeach; ?>
+<div id="fs-ssr-grid" class="flex px-4 md:pr-0 lg:pl-6 pt-0 pb-12 ahy-filter-layout">
+    <aside class="hidden md:block ahy-filter-sidebar" aria-hidden="true"></aside>
+    <div class="flex-1 min-w-0">
+        <div class="grid grid-cols-2 xl:grid-cols-3" style="gap:var(--ahy-grid-gap);">
+            <?php foreach ($plpResult->items as $item): ?>
+                <?= /* @noEscape */ $renderSsrCard($item) ?>
+            <?php endforeach; ?>
+        </div>
     </div>
 </div>
 <script type="application/json" id="fs-ssr-payload"><?= /* @noEscape */ json_encode($plpResult->toArray(), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?></script>
