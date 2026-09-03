@@ -77,6 +77,7 @@ class FalcoSensePlpProvider implements PlpDataProviderInterface
         // overhead, which every page pays regardless of FalcoSense. Remove once
         // the module's contribution is confirmed.
         $benchStart = microtime(true);
+        $this->logTimeSinceRequestStart($benchStart, 'search "' . $query->searchQuery . '"');
 
         try {
             $decoded = $this->http->getJson(
@@ -147,6 +148,7 @@ class FalcoSensePlpProvider implements PlpDataProviderInterface
         }
 
         $benchStart = microtime(true);
+        $this->logTimeSinceRequestStart($benchStart, 'category "' . $query->categoryName . '" (p' . $query->page . ')');
 
         try {
             $decoded = $this->http->getJson(
@@ -175,6 +177,33 @@ class FalcoSensePlpProvider implements PlpDataProviderInterface
         ));
 
         return $result;
+    }
+
+    /**
+     * TEMPORARY benchmark instrumentation — logs how much time Magento itself
+     * spent (bootstrap, routing, layout generation, any earlier blocks)
+     * BEFORE this SSR call even began, using PHP's own request-start
+     * timestamp ($_SERVER['REQUEST_TIME_FLOAT'], set before Magento boots)
+     * as the origin. This is what lets "the rest of the time is the website,
+     * not FalcoSense" be read directly out of one log file for one request,
+     * instead of eyeballing a server log line against a separate DevTools
+     * screenshot and matching them by closest timestamp. Doesn't capture
+     * time spent AFTER this call returns (the rest of page rendering,
+     * sending the response) — only the "before" portion. Remove alongside
+     * the other BENCH instrumentation once no longer needed.
+     */
+    private function logTimeSinceRequestStart(float $now, string $label): void
+    {
+        $requestStart = $_SERVER['REQUEST_TIME_FLOAT'] ?? null;
+        if (!is_numeric($requestStart)) {
+            return;
+        }
+
+        $this->logger->info(sprintf(
+            '[SmartSearch][BENCH] Magento time BEFORE reaching FalcoSense (request start -> platform call) for %s: %dms',
+            $label,
+            (int) round(($now - (float) $requestStart) * 1000)
+        ));
     }
 
     private function mapResponse(array $decoded, PlpQuery $query): PlpResult
