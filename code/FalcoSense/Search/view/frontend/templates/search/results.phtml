@@ -117,6 +117,19 @@ $renderSsrCard = function (\FalcoSense\Search\Model\Plp\PlpItem $item) use ($blo
         background-color: #efeadd;
     }
 
+    /* Filters+grid loader — scoped to #search-results-layout (both columns
+       together) instead of the fixed/viewport overlay above, so a filter/sort
+       fetch dims just that row rather than the whole page. */
+    .ahy-products-loader-overlay {
+        position: absolute;
+        inset: 0;
+        z-index: 20;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background-color: #efeadd;
+    }
+
 
     /* Everest GIF page loader */
     .ahy-page-loader {
@@ -212,7 +225,7 @@ $renderSsrCard = function (\FalcoSense\Search\Model\Plp\PlpItem $item) use ($blo
     class="w-full">
     
    <div class="md:hidden bg-ahy-bg border-b border-gray-300"
-        x-show="!loading && results.length > 0 && !mobileNavOpen"
+        x-show="results.length > 0 && !mobileNavOpen"
         x-data="{ showMobileFilter: false, mobileNavOpen: false }"
         @toggle-mobile-menu.window="mobileNavOpen = !mobileNavOpen"
         x-effect="document.body.style.overflow = showMobileFilter ? 'hidden' : ''">
@@ -292,12 +305,6 @@ $renderSsrCard = function (\FalcoSense\Search\Model\Plp\PlpItem $item) use ($blo
         </template>
     </div>
 
-    <!-- Everest GIF loader — replaces skeleton while products fetch -->
-    <div x-show="loading" class="w-full" style="min-height:1200px;">
-        <div class="ahy-page-loader"></div>
-    </div>
-
-
     <!-- Pagination overlay: covers the existing grid without collapsing it, so the
          page's scroll height never shrinks mid-scroll like the "loading" skeleton
          above does — see goToPage(). -->
@@ -305,7 +312,19 @@ $renderSsrCard = function (\FalcoSense\Search\Model\Plp\PlpItem $item) use ($blo
         <div class="ahy-page-loader" style="margin:0;"></div>
     </div>
 
-    <div id="search-results-layout" x-show="!loading" class="flex px-4 md:pr-0 lg:pl-6 pt-0 pb-12 ahy-filter-layout">
+    <!-- Filters + grid stay mounted (not hidden) while a filter/sort/search fetch is
+         in flight, and the loader below is scoped to just this row instead of hiding
+         the whole section — hiding #search-results-layout (the old approach) collapsed
+         the page's scroll height out from under _scrollToResults()'s already-computed
+         target, landing the scroll on blank space instead of the filters/grid. Only
+         the very first-ever fetch (nothing rendered yet) has no content to sit on top
+         of, so it gets a min-height placeholder instead. -->
+    <div id="search-results-layout" class="flex px-4 md:pr-0 lg:pl-6 pt-0 pb-12 ahy-filter-layout relative"
+        :style="(loading && !results.length) ? 'min-height:1200px' : ''">
+
+        <div x-show="loading" x-cloak class="ahy-products-loader-overlay">
+            <div class="ahy-page-loader" style="margin:0;"></div>
+        </div>
 
         <aside class="hidden md:block ahy-filter-sidebar" x-show="results.length > 0">
             <div class="">
@@ -331,7 +350,7 @@ $renderSsrCard = function (\FalcoSense\Search\Model\Plp\PlpItem $item) use ($blo
                 </div>
                 END SKELETON -->
 
-                <div x-show="!loading && results.length > 0">
+                <div x-show="results.length > 0">
 
                     <div class="pb-3 mb-6 border-b-4 border-ahy-blue">
                         <span class="text-sm font-semibold text-ahy-blue">
@@ -382,7 +401,7 @@ $renderSsrCard = function (\FalcoSense\Search\Model\Plp\PlpItem $item) use ($blo
 
         <div class="flex-1 min-w-0">
 
-            <div class="hidden md:flex items-center justify-end mb-5" x-show="!loading && results.length > 0">
+            <div class="hidden md:flex items-center justify-end mb-5" x-show="results.length > 0">
                 <div x-data="{ open: false }" class="relative flex items-center gap-1 text-sm text-ahy-blue">
                     <span>Sort by:</span>
                     <button @click="open = !open" class="font-bold flex items-center gap-1 ml-1">
@@ -407,7 +426,12 @@ $renderSsrCard = function (\FalcoSense\Search\Model\Plp\PlpItem $item) use ($blo
                 </div>
             </div>
 
-            <div x-show="!loading && wasCorrection"
+            <!-- Spell correction — kept tied only to wasCorrection/suggestedQuery (last completed
+                 fetch's values, not reset until the search term itself changes, see init()),
+                 same as the results grid below: it must NOT also gate on !loading, or it pops out
+                 and back in on every filter/sort/pagination refetch even though its own content
+                 hasn't changed, yanking the grid below up and down each time. -->
+            <div x-show="wasCorrection"
                 class="mb-4 px-4 py-3 bg-white rounded-xl border border-gray-200 text-sm text-gray-600">
                 Showing results for <strong class="text-ahy-blue" x-text="correctedQuery"></strong>
                 instead of <em x-text="originalQuery"></em>.
@@ -418,7 +442,7 @@ $renderSsrCard = function (\FalcoSense\Search\Model\Plp\PlpItem $item) use ($blo
                 </span>
             </div>
 
-            <div x-show="!loading && !wasCorrection && suggestedQuery"
+            <div x-show="!wasCorrection && suggestedQuery"
                 class="mb-4 px-4 py-3 bg-white rounded-xl border border-gray-200 text-sm text-gray-600">
                 Did you mean
                 <a class="text-ahy-blue font-semibold hover:underline cursor-pointer"
@@ -509,13 +533,13 @@ $renderSsrCard = function (\FalcoSense\Search\Model\Plp\PlpItem $item) use ($blo
 
             <?= /* @noEscape */ $block->getChildHtml('zero_results') ?>
 
-            <div x-show="!loading && results.length > 0" class="hidden md:grid grid-cols-2 xl:grid-cols-3 ahy-product-grid" style="gap:var(--ahy-grid-gap);">
+            <div x-show="results.length > 0" class="hidden md:grid grid-cols-2 xl:grid-cols-3 ahy-product-grid" style="gap:var(--ahy-grid-gap);">
                 <template x-for="(product, index) in sortedResults()" :key="index + '-' + (product.sku || product.product_id || 'x')">
                     <?= /* @noEscape */ $block->getChildHtml('product_card_desktop') ?>
                 </template>
             </div>
 
-            <div x-show="!loading && results.length > 0" class="md:hidden flex flex-col ahy-product-grid" style="gap:var(--ahy-grid-gap);">
+            <div x-show="results.length > 0" class="md:hidden flex flex-col ahy-product-grid" style="gap:var(--ahy-grid-gap);">
                 <template x-for="(product, index) in sortedResults()" :key="index + '-m-' + (product.sku || product.product_id || 'x')">
                     <?= /* @noEscape */ $block->getChildHtml('product_card_mobile') ?>
                 </template>
