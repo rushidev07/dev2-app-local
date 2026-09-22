@@ -1,17 +1,44 @@
 <?php
 $viewModel = $block->getViewModel();
+
+/**
+ * $ahyStyleConfig is the FalcoSense_Search\ViewModel\StyleConfig injected as the
+ * block argument "ahy_style_config". FalcoSense only injects it on the handle it
+ * owns (view/frontend/layout/marketplace_seller_profile.xml).
+ *
+ * The SAME block name — marketplace_sellerprofile_layout_ahy — is also declared
+ * in at least three other places that do NOT inject it:
+ *   - Webkul_Marketplace's own marketplace_seller_profile.xml
+ *   - Ahy_ThemeCustomization's cms_page_view_id_* layouts
+ *   - CMS pages carrying their own Layout Update XML (e.g. /The-Everest-Collection)
+ *
+ * On those, getAhyStyleConfig() returns null and every unguarded call below was a
+ * fatal "Call to a member function getValue() on null", which took the entire page
+ * down with a 500 (confirmed on dev2 at this file, line 5).
+ *
+ * Each call already carries its own default as the third argument, so falling back
+ * to that default keeps those pages rendering with stock button styling instead of
+ * crashing. Pages that DO receive the config behave exactly as before.
+ */
 $ahyStyleConfig = $block->getAhyStyleConfig();
+
+$ahyStyleValue = static function (string $group, string $field, string $default) use ($ahyStyleConfig) {
+    return $ahyStyleConfig ? $ahyStyleConfig->getValue($group, $field, $default) : $default;
+};
+
 $addToCartBorderRadius = $block->escapeHtmlAttr(
-    $ahyStyleConfig->getValue('add_to_cart_button', 'border_radius', '9999')
+    $ahyStyleValue('add_to_cart_button', 'border_radius', '9999')
 );
-$addToCartIconUrl = $ahyStyleConfig->getImageUrl('add_to_cart_button', 'icon');
-$addToCartFilled = $ahyStyleConfig->getValue('add_to_cart_button', 'button_style', 'outline') === 'filled';
+$addToCartIconUrl = $ahyStyleConfig
+    ? $ahyStyleConfig->getImageUrl('add_to_cart_button', 'icon')
+    : '';
+$addToCartFilled = $ahyStyleValue('add_to_cart_button', 'button_style', 'outline') === 'filled';
 $addToCartColorClasses = $addToCartFilled
     ? 'bg-ahy-blue !text-white hover:opacity-90'
     : '!bg-transparent !text-ahy-blue hover:shadow-[#0d2f47_0px_0px_0px_1px_inset]';
-$addToCartLabelOverride = $ahyStyleConfig->getValue('add_to_cart_button', 'label_text', '');
+$addToCartLabelOverride = $ahyStyleValue('add_to_cart_button', 'label_text', '');
 $addToCartLabel = $addToCartLabelOverride !== '' ? $addToCartLabelOverride : 'Add';
-$addToCartOptionsLabelOverride = $ahyStyleConfig->getValue('add_to_cart_button', 'options_label_text', '');
+$addToCartOptionsLabelOverride = $ahyStyleValue('add_to_cart_button', 'options_label_text', '');
 $addToCartOptionsLabel = $addToCartOptionsLabelOverride !== '' ? $addToCartOptionsLabelOverride : 'Options';
 $addToCartLabelJs = $block->escapeJs($addToCartLabel);
 $helper = $viewModel->getHelper();
