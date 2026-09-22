@@ -1,6 +1,28 @@
 <?xml version="1.0"?>
 <page xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
       xsi:noNamespaceSchemaLocation="urn:magento:framework:View/Layout/etc/page_configuration.xsd">
+    <head>
+        <!--
+            The module's own stylesheets. Until now FalcoSense shipped no CSS at
+            all and relied on the host theme having compiled our templates'
+            Tailwind classes into ITS stylesheet — true on Everest (Hyvä scans
+            app/code/**/*.phtml), false on every other store, where the UI
+            rendered unstyled.
+
+            Load order matters and is the order below:
+              fs-tokens      custom properties; the supported override surface
+              fs-base        the .fs-root isolation layer; must precede components
+              fs-components  the component rules themselves
+
+            All three are scoped to .fs-root, so nothing here can affect the host
+            store's own markup. Shadow-DOM surfaces additionally <link> these
+            inside their shadow root, since light-DOM styles cannot cross that
+            boundary.
+        -->
+        <css src="FalcoSense_Search::css/fs-tokens.css"/>
+        <css src="FalcoSense_Search::css/fs-base.css"/>
+        <css src="FalcoSense_Search::css/fs-components.css"/>
+    </head>
     <body>
         <!--
             Override Hyvä's own header-search block (Magento_Theme::html/header/search-form.phtml)
@@ -30,7 +52,72 @@
                    template="FalcoSense_Search::html/header/product-card-mobile.phtml"/>
         </referenceBlock>
 
+        <!--
+            ===== Luma-family mount =====================================
+            Everything above targets "header-search", which is a Hyvä-family
+            block name. Luma-family themes don't have it: Magento_Search puts
+            its search block at "top.search" inside the "header-wrapper"
+            container. On those themes the referenceBlock above matches nothing,
+            is silently ignored, and FalcoSense's search never appears.
+
+            So we also remove the native block and mount our own into
+            "header.container" — declared by Magento's core page layouts
+            (Magento_Theme::page_layout/*.xml), so it exists on essentially any
+            theme built on them, Luma included.
+
+            Both removals below are harmless no-ops on a theme that lacks the
+            named block, which is what makes it safe to declare both families
+            unconditionally.
+
+            Child blocks here carry DIFFERENT names but the SAME `as` aliases as
+            their counterparts above. Block names are global and must be unique;
+            getChildHtml() in the template resolves by alias, which is scoped to
+            the parent. That's what lets one template serve both mounts with no
+            changes to it.
+
+            If both names somehow resolve on one theme, HeaderSearchForm::_toHtml()
+            suppresses this mount so the form isn't rendered twice.
+        -->
+        <referenceBlock name="top.search" remove="true"/>
+
+        <referenceContainer name="header.container">
+            <block class="FalcoSense\Search\Block\HeaderSearchForm"
+                   name="falcosense_header_search"
+                   template="FalcoSense_Search::html/header/search-form.phtml">
+                <block class="Magento\Framework\View\Element\Template"
+                       name="falcosense_header_filters_desktop"
+                       as="header_filters_desktop"
+                       template="FalcoSense_Search::html/header/filters-desktop.phtml"/>
+                <block class="Magento\Framework\View\Element\Template"
+                       name="falcosense_header_filters_mobile"
+                       as="header_filters_mobile"
+                       template="FalcoSense_Search::html/header/filters-mobile.phtml"/>
+                <block class="Magento\Framework\View\Element\Template"
+                       name="falcosense_header_zero_results"
+                       as="header_zero_results"
+                       template="FalcoSense_Search::html/header/zero-results.phtml"/>
+                <block class="FalcoSense\Search\Block\ProductCard"
+                       name="falcosense_header_product_card_desktop"
+                       as="header_product_card_desktop"
+                       template="FalcoSense_Search::html/header/product-card-desktop.phtml"/>
+                <block class="FalcoSense\Search\Block\ProductCard"
+                       name="falcosense_header_product_card_mobile"
+                       as="header_product_card_mobile"
+                       template="FalcoSense_Search::html/header/product-card-mobile.phtml"/>
+            </block>
+        </referenceContainer>
+
         <referenceContainer name="before.body.end">
+            <!--
+                Loads Alpine only if the host theme hasn't already (see the
+                template for the detection). Placed first in this container so
+                its DOMContentLoaded listener is registered before anything
+                below can depend on Alpine being available.
+            -->
+            <block class="Magento\Framework\View\Element\Template"
+                   name="falcosense_alpine_bootstrap"
+                   template="FalcoSense_Search::alpine-bootstrap.phtml"/>
+
             <block class="FalcoSense\Search\Block\ProductCard"
                    name="ahy_global_style_vars"
                    template="FalcoSense_Search::global-style-vars.phtml"/>

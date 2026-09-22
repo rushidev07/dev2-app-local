@@ -1,0 +1,87 @@
+<!doctype html><html><head><meta charset="utf-8">
+<link rel="stylesheet" href="reference.css">
+<link rel="stylesheet" href="../../view/frontend/web/css/fs-tokens.css">
+<link rel="stylesheet" href="../../view/frontend/web/css/fs-base.css">
+<link rel="stylesheet" href="../../view/frontend/web/css/fs-components.css">
+<style>
+html{font-size:16px}
+/* Tailwind preflight fragment the reference build omitted — border-2 sets
+   width only and relies on this for style/colour. Without it the reference
+   side computes border-width:0, which is not what Everest renders. */
+#old *,#old *::before,#old *::after{border-width:0;border-style:solid;border-color:#e5e7eb}
+</style>
+</head><body>
+<!-- OLD: original Tailwind class lists, verbatim from the templates -->
+<div id="old">
+ <div class="bg-white relative flex flex-col group" style="border-radius:var(--ahy-card-radius);border:var(--ahy-card-border);box-shadow:var(--ahy-card-shadow);">
+  <a class="block overflow-hidden"><img class="w-full object-contain object-center p-3" style="max-width:244px;height:244px;margin:0 auto;display:block"></a>
+  <div class="flex flex-col flex-1 px-4 pb-4">
+   <a class="line-clamp-2 !text-lg !font-extrabold text-ahy-blue leading-normal mt-1 h-[3.4rem]">t</a>
+   <p class="text-xs text-gray-500 mt-1">s</p>
+   <div class="AhyPrice min-h-[5.5rem] flex flex-col !overflow-visible mt-1">
+    <div class="text-ahy-red text-xs font-bold uppercase">Deal</div>
+    <div class="flex items-baseline gap-2">
+     <span class="text-2xl font-extrabold text-ahy-blue">$10</span>
+     <span class="text-sm text-gray-400 line-through">$20</span>
+    </div>
+    <span class="capitalize text-ahy-red !font-bold !text-sm">From</span>
+    <span class="capitalize !flex justify-center items-center w-full !rounded-full !bg-transparent !text-ahy-blue !text-sm !py-1.5 !px-2.5 font-bold !border-2 !border-ahy-blue">See Options</span>
+   </div>
+  </div>
+  <div class="absolute left-3 top-3 z-10">b</div>
+ </div>
+</div>
+
+<!-- NEW: semantic classes -->
+<div id="new" class="fs-root">
+ <div class="fs-card">
+  <a class="fs-card__media"><img class="fs-card__image"></a>
+  <div class="fs-card__body">
+   <a class="fs-card__title">t</a>
+   <p class="fs-card__seller">s</p>
+   <div class="fs-card__price">
+    <div class="fs-card__deal-label">Deal</div>
+    <div class="fs-card__price-row">
+     <span class="fs-card__price-current">$10</span>
+     <span class="fs-card__price-was">$20</span>
+    </div>
+    <span class="fs-card__price-from">From</span>
+    <span class="fs-card__options-btn">See Options</span>
+   </div>
+  </div>
+  <div class="fs-card__badge">b</div>
+ </div>
+</div>
+<pre id="out"></pre>
+<script>
+var PAIRS = [
+ ['card',      '#old > div',                    '#new .fs-card',              ['position','display','flex-direction','background-color']],
+ ['media',     '#old .block',                   '#new .fs-card__media',       ['display','overflow']],
+ ['image',     '#old img',                      '#new .fs-card__image',       ['width','max-width','height','padding-top','object-fit','display']],
+ ['body',      '#old .flex-1',                  '#new .fs-card__body',        ['display','flex-direction','flex-grow','padding-left','padding-bottom']],
+ ['title',     '#old .line-clamp-2',            '#new .fs-card__title',       ['display','-webkit-line-clamp','overflow','height','margin-top','font-size','font-weight','line-height','color']],
+ ['seller',    '#old p',                        '#new .fs-card__seller',      ['margin-top','font-size','line-height','color']],
+ ['price',     '#old .AhyPrice',                '#new .fs-card__price',       ['display','flex-direction','min-height','margin-top','overflow']],
+ ['deal',      '#old .uppercase',               '#new .fs-card__deal-label',  ['font-size','font-weight','text-transform','color']],
+ ['priceRow',  '#old .items-baseline',          '#new .fs-card__price-row',   ['display','align-items','gap']],
+ ['current',   '#old .text-2xl',                '#new .fs-card__price-current',['font-size','line-height','font-weight','color']],
+ ['was',       '#old .line-through',            '#new .fs-card__price-was',   ['font-size','line-height','color','text-decoration-line']],
+ ['from',      '#old .capitalize.text-ahy-red', '#new .fs-card__price-from',  ['font-size','font-weight','text-transform','color']],
+ ['optionsBtn','#old .justify-center',          '#new .fs-card__options-btn', ['display','justify-content','align-items','width','padding-top','padding-left','border-top-width','border-top-color','border-top-style','border-radius','background-color','color','font-size','font-weight','text-transform']],
+ ['badge',     '#old .absolute',                '#new .fs-card__badge',       ['position','left','top','z-index']]
+];
+var L=[], pass=0, fail=0;
+PAIRS.forEach(function(P){
+ var a=document.querySelector(P[1]), b=document.querySelector(P[2]);
+ if(!a||!b){L.push('MISSING '+P[0]);fail++;return;}
+ var ca=getComputedStyle(a), cb=getComputedStyle(b), bad=[];
+ P[3].forEach(function(p){
+   var va=ca.getPropertyValue(p), vb=cb.getPropertyValue(p);
+   if(va!==vb) bad.push(p+': tw='+va+' | fs='+vb);
+ });
+ if(bad.length){fail++;L.push('DIFF  '+P[0]);bad.forEach(function(x){L.push('        '+x)});}
+ else {pass++;L.push('ok    '+P[0]+'  ('+P[3].length+' props)');}
+});
+L.push(''); L.push('components matching: '+pass+'   differing: '+fail);
+document.getElementById('out').textContent=L.join('\n');
+</script></body></html>

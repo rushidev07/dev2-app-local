@@ -28,7 +28,13 @@ $shadowCss = in_array($productCardBorderShadow, ['shadow', 'both'], true)
         --ahy-card-border: <?= $borderCss ?>;
         --ahy-card-shadow: <?= $shadowCss ?>;
         --ahy-grid-gap: <?= $productCardSpacing ?>px;
+        /* Consumed by web/css/fs-components.css via --fs-grid-columns. Emitted
+           as a variable (rather than only baked into the rule below) so the
+           semantic .fs-grid honours this admin setting too. */
+        --ahy-grid-columns: <?= $productCardColumns ?>;
     }
+    /* Retained for templates still using .ahy-product-grid. Once every surface
+       has moved to .fs-grid this rule can go; the variable above replaces it. */
     @media (min-width: 1280px) {
         .ahy-product-grid { grid-template-columns: repeat(<?= $productCardColumns ?>, minmax(0, 1fr)); }
     }

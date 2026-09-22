@@ -1,0 +1,304 @@
+/*
+ * FalcoSense components.
+ * ---------------------------------------------------------------------------
+ * Load order: fs-tokens.css -> fs-base.css -> this file.
+ *
+ * Every rule is scoped under .fs-root so it never depends on file order to
+ * beat the reset in fs-base.css (see that file's specificity note).
+ *
+ * Values here were not eyeballed. They were resolved from the Tailwind build
+ * that previously produced this UI, so each declaration matches what the
+ * utility classes computed to on Everest. The originals are noted per block.
+ *
+ * No !important anywhere. The 16 `!`-modified utilities in the old markup
+ * existed to win cascade fights with the host theme; fs-base.css removes that
+ * fight entirely, so they are not carried forward.
+ */
+
+/* ===========================================================================
+   PRODUCT CARD — desktop
+   Replaces, per element:
+     root    bg-white relative flex flex-col group
+     media   block overflow-hidden
+     image   w-full object-contain object-center p-3
+     body    flex flex-col flex-1 px-4 pb-4
+     title   line-clamp-2 !text-lg !font-extrabold text-ahy-blue leading-normal mt-1 h-[3.4rem]
+     seller  text-xs text-gray-500 mt-1  (+ line-clamp-1 on the mobile card)
+     price   AhyPrice min-h-[5.5rem] flex flex-col !overflow-visible mt-1
+   =========================================================================== */
+
+.fs-root .fs-card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    background-color: var(--fs-color-card);
+    border-radius: var(--fs-radius-card);
+    border: var(--fs-border-card);
+    box-shadow: var(--fs-shadow-card);
+}
+
+.fs-root .fs-card__media {
+    display: block;
+    overflow: hidden;
+}
+
+.fs-root .fs-card__image {
+    width: 100%;
+    max-width: var(--fs-card-image-size);
+    height: var(--fs-card-image-size);
+    padding: var(--fs-space-3);
+    object-fit: contain;
+    object-position: center;
+    margin: 0 auto;
+    display: block;
+}
+
+.fs-root .fs-card__body {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 0%;
+    padding-left: var(--fs-space-4);
+    padding-right: var(--fs-space-4);
+    padding-bottom: var(--fs-space-4);
+}
+
+.fs-root .fs-card__title {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: var(--fs-card-title-lines);
+    line-clamp: var(--fs-card-title-lines);
+    overflow: hidden;
+    /* Fixed height keeps every card in a row the same height whether the title
+       wraps to one line or two — removing it reintroduces ragged grid rows. */
+    height: 3.4rem;
+    margin-top: var(--fs-space-1);
+    font-size: var(--fs-text-lg);
+    font-weight: var(--fs-weight-extrabold);
+    /* 1.75rem, not 1.5. The original markup carried BOTH `!text-lg` (which sets
+       line-height:1.75rem !important) and `leading-normal` (1.5) — the
+       !important won, so `leading-normal` never applied and the rendered value
+       was 28px. Translating `leading-normal` literally would have silently
+       changed it to 27px and reflowed every two-line title. Caught by the
+       computed-style parity check, not by eye. */
+    line-height: 1.75rem;
+    color: var(--fs-color-accent);
+}
+
+.fs-root .fs-card__seller {
+    margin-top: var(--fs-space-1);
+    font-size: var(--fs-text-xs);
+    line-height: 1rem;
+    color: var(--fs-color-text-muted);
+}
+
+.fs-root .fs-card__seller--clamped {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 1;
+    line-clamp: 1;
+    overflow: hidden;
+}
+
+/* ---- price block -------------------------------------------------------- */
+
+.fs-root .fs-card__price {
+    display: flex;
+    flex-direction: column;
+    /* Reserves room for the tallest variant (Deal label + two price lines) so
+       cards don't jump height when one product is on sale and its neighbour
+       isn't. */
+    min-height: 5.5rem;
+    margin-top: var(--fs-space-1);
+    overflow: visible;
+}
+
+.fs-root .fs-card__deal-label {
+    font-size: var(--fs-text-xs);
+    line-height: 1rem;
+    font-weight: var(--fs-weight-bold);
+    text-transform: uppercase;
+    color: var(--fs-color-sale);
+}
+
+.fs-root .fs-card__price-row {
+    display: flex;
+    align-items: baseline;
+    gap: var(--fs-space-2);
+}
+
+.fs-root .fs-card__price-col {
+    display: flex;
+    flex-direction: column;
+    align-items: baseline;
+}
+
+.fs-root .fs-card__price-current {
+    font-size: var(--fs-text-2xl);
+    line-height: 2rem;
+    font-weight: var(--fs-weight-extrabold);
+    color: var(--fs-color-accent);
+}
+
+.fs-root .fs-card__price-was {
+    font-size: var(--fs-text-sm);
+    line-height: 1.25rem;
+    color: var(--fs-color-text-subtle);
+    text-decoration-line: line-through;
+}
+
+.fs-root .fs-card__price-from {
+    font-size: var(--fs-text-sm);
+    line-height: 1.25rem;
+    font-weight: var(--fs-weight-bold);
+    text-transform: capitalize;
+    color: var(--fs-color-sale);
+}
+
+/* "See Options" — shown instead of a price for configurables with no base price.
+   Was: capitalize !flex justify-center items-center w-full !rounded-full
+        !bg-transparent !text-ahy-blue !text-sm !py-1.5 !px-2.5 font-bold
+        !border-2 !border-ahy-blue */
+.fs-root .fs-card__options-btn {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    padding: 0.375rem 0.625rem;
+    border: 2px solid var(--fs-color-accent);
+    border-radius: var(--fs-radius-control);
+    background-color: transparent;
+    color: var(--fs-color-accent);
+    font-size: var(--fs-text-sm);
+    line-height: 1.25rem;
+    font-weight: var(--fs-weight-bold);
+    text-transform: capitalize;
+}
+
+/* ---- overlays on the image --------------------------------------------- */
+
+/* Was: absolute left-3 top-3 z-10 */
+.fs-root .fs-card__badge {
+    position: absolute;
+    left: var(--fs-space-3);
+    top: var(--fs-space-3);
+    z-index: 10;
+}
+
+.fs-root .fs-card__stock-badge {
+    padding: 0.125rem var(--fs-space-2);
+    border: 2px solid var(--fs-color-in-stock);
+    border-radius: 0.25rem;
+    background-color: var(--fs-color-card);
+    color: var(--fs-color-in-stock);
+    font-size: var(--fs-text-xs);
+    line-height: 1rem;
+    font-weight: var(--fs-weight-semibold);
+}
+
+/* ---- icons -------------------------------------------------------------- */
+
+.fs-root .fs-icon {
+    flex-shrink: 0;
+    width: 1rem;
+    height: 1rem;
+}
+
+.fs-root .fs-icon--sm { width: 0.875rem; height: 0.875rem; }
+.fs-root .fs-icon--lg { width: 1.25rem; height: 1.25rem; }
+
+/* Was: animate-spin */
+.fs-root .fs-icon--spin {
+    animation: fs-spin 1s linear infinite;
+}
+
+@keyframes fs-spin {
+    to { transform: rotate(360deg); }
+}
+
+/* ===========================================================================
+   PRODUCT GRID
+   Replaces: ahy-product-grid hidden md:grid grid-cols-2 xl:grid-cols-3
+             ahy-product-grid md:hidden flex flex-col
+   =========================================================================== */
+
+.fs-root .fs-grid {
+    display: none;
+    gap: var(--fs-grid-gap);
+}
+
+.fs-root .fs-grid--mobile {
+    display: flex;
+    flex-direction: column;
+    gap: var(--fs-grid-gap);
+}
+
+@media (min-width: 768px) {
+    .fs-root .fs-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .fs-root .fs-grid--mobile { display: none; }
+}
+
+@media (min-width: 1280px) {
+    /* Columns-per-row is an admin setting; --fs-grid-columns resolves to
+       --ahy-grid-columns, emitted at runtime by global-style-vars.phtml.
+       Hardcoding 3 here would override whatever the merchant configured —
+       which the old .ahy-product-grid rule was already honouring. */
+    .fs-root .fs-grid {
+        grid-template-columns: repeat(var(--fs-grid-columns), minmax(0, 1fr));
+    }
+}
+
+/* ===========================================================================
+   LOADING INDICATOR
+   Replaces .ahy-page-loader, which hard-coded
+   url(/media/icons/everest-loading-icon.gif) — a path that only exists on
+   Everest. The default here is a pure-CSS spinner so the module ships with no
+   image dependency; a store can swap in its own via --fs-loader-image
+   (see fs-tokens.css).
+   =========================================================================== */
+
+.fs-root .fs-loader {
+    position: relative;
+    width: var(--fs-loader-size);
+    height: var(--fs-loader-size);
+    margin: var(--fs-space-8) auto;
+    background-image: var(--fs-loader-image);
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: contain;
+}
+
+.fs-root .fs-loader::after {
+    display: var(--fs-loader-spinner-display);
+    content: "";
+    position: absolute;
+    inset: 0;
+    border: var(--fs-loader-thickness) solid var(--fs-loader-track);
+    border-top-color: var(--fs-loader-color);
+    border-radius: 50%;
+    animation: fs-spin 0.8s linear infinite;
+}
+
+/* Overlay that dims only the results area while a fetch is in flight — the
+   scoped loader introduced on 2026-09-15. Positioned against whichever
+   FalcoSense layout row carries .fs-results-row, never the viewport, so the
+   shopper can keep typing while results reload. */
+.fs-root .fs-loader-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 20;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: var(--fs-color-surface);
+}
+
+.fs-root .fs-loader-overlay .fs-loader {
+    margin: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .fs-root .fs-loader::after { animation-duration: 2.4s; }
+}

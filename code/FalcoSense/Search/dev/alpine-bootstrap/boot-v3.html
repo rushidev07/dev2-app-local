@@ -1,0 +1,84 @@
+<!doctype html><html><head><meta charset="utf-8">
+<script>window.__warn=[];var _w=console.warn;console.warn=function(m){window.__warn.push(String(m));_w.apply(console,arguments)};</script>
+<script>window.Alpine={version:"3.14.0"};</script>
+<script>
+(function () {
+    'use strict';
+
+    var SRC = "../../view/frontend/web/js/vendor/alpine-3.17.4.min.js";
+
+    /**
+     * Which major version of Alpine the host page already has, or 0 for none.
+     * Alpine 3 exposes Alpine.version; Alpine 2 did not, so a global with no
+     * version string is treated as 2.
+     */
+    function hostAlpineMajor() {
+        var A = window.Alpine;
+        if (!A) { return 0; }
+        var m = String(A.version || '').match(/^(\d+)/);
+        return m ? parseInt(m[1], 10) : 2;
+    }
+
+    /**
+     * Belt-and-braces for themes that load Alpine with `async` rather than
+     * `defer`. A deferred script has always executed by DOMContentLoaded, so
+     * hostAlpineMajor() sees it; an async one may not have, and we would load a
+     * second copy. Checking the DOM for an alpine script tag catches that.
+     */
+    function hostHasAlpineTag() {
+        var tags = document.getElementsByTagName('script');
+        for (var i = 0; i < tags.length; i++) {
+            var src = tags[i].src || '';
+            if (src && src !== SRC && /alpine(\.|-|\/)/i.test(src)) { return true; }
+        }
+        return false;
+    }
+
+    function load() {
+        var major = hostAlpineMajor();
+
+        if (major >= 3) { return; }          // host already provides a compatible Alpine
+
+        if (major === 2) {
+            // Loading 3 alongside 2 would leave both trying to own the same
+            // directives. Bail out loudly rather than corrupt the page.
+            if (window.console && console.warn) {
+                console.warn('[FalcoSense] Host theme ships Alpine 2; FalcoSense needs 3. ' +
+                             'Search UI will not render. Upgrade the theme\'s Alpine, or ' +
+                             'remove it and let FalcoSense load its own.');
+            }
+            return;
+        }
+
+        if (hostHasAlpineTag()) { return; }
+        if (window.__fsAlpineRequested) { return; }
+        window.__fsAlpineRequested = true;
+
+        var s = document.createElement('script');
+        s.src = SRC;
+        document.head.appendChild(s);
+    }
+
+    // Run at DOMContentLoaded: deferred scripts (how Hyvä loads Alpine) have all
+    // executed by then, so the detection above sees the host's copy. Running any
+    // earlier would race it and load a redundant second Alpine on every Hyvä page.
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', load, { once: true });
+    } else {
+        load();
+    }
+})();
+</script>
+</head><body><pre id="out"></pre>
+<script>
+window.addEventListener('load', function(){
+  setTimeout(function(){
+    var tags=[].slice.call(document.getElementsByTagName('script')).map(function(s){return s.src}).filter(Boolean);
+    var injected=tags.filter(function(s){return /alpine-3\.17\.4/.test(s)}).length;
+    document.getElementById('out').textContent =
+      'scenario      : v3\n' +
+      'injected copy : '+injected+'\n' +
+      'warnings      : '+(window.__warn.length?window.__warn[0].slice(0,60):'none');
+  },300);
+});
+</script></body></html>

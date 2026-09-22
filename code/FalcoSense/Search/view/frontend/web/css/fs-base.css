@@ -1,0 +1,111 @@
+/*
+ * FalcoSense isolation layer.
+ * ---------------------------------------------------------------------------
+ * MUST be loaded before fs-components.css. Everything here is scoped to
+ * .fs-root, so this file is safe in the host page's light DOM: it can only
+ * ever affect a subtree FalcoSense owns.
+ *
+ * WHY `all: unset` AND NOT `all: revert`
+ * --------------------------------------
+ * Both wipe the host theme's type-selector CSS (`button {}`, `ul {}`, `a {}`)
+ * off our elements. They differ in what they leave behind, and it was measured
+ * in a headless browser against a hostile stub theme, not assumed:
+ *
+ *   all: revert  -> rolls back to the USER-AGENT stylesheet.
+ *                   The UA sets `font` on button/input/select/textarea, so our
+ *                   controls came out Arial 13.3px instead of the store's font.
+ *                   It also leaves UA cruft to clean up afterwards: button
+ *                   chrome (#efefef bg, 2px border), ul padding-left 40px,
+ *                   link blue #0000ee, paragraph margins.
+ *
+ *   all: unset   -> inherited properties INHERIT, everything else goes INITIAL.
+ *                   Form controls inherit the host's font with no special
+ *                   casing (this is what makes --fs-font-body: inherit work),
+ *                   links inherit the host's text colour, and there is no UA
+ *                   decoration left to undo. Measured: button background
+ *                   transparent, 0 border, 0 padding; ul padding-left 0.
+ *
+ * Two things `unset` does NOT give us, both re-asserted below:
+ *   1. display  -> `unset` computes to `inline` for everything, which collapses
+ *                  every div and kills the grid. `display: revert` restores the
+ *                  UA display per element (block, list-item, table-cell, ...).
+ *   2. box-sizing -> initial is content-box; every layout rule we write assumes
+ *                  border-box. Neither revert nor unset provides it.
+ *
+ * ORDERING / SPECIFICITY
+ * ----------------------
+ * `.fs-root *` is (0,1,0). A component rule written as `.fs-root .fs-card` is
+ * (0,2,0) and always wins. A bare `.fs-card` is also (0,1,0) and wins only on
+ * source order. Verified both work, but fs-components.css scopes its selectors
+ * under .fs-root anyway so correctness never depends on file order.
+ */
+
+.fs-root,
+.fs-root * {
+    all: unset;
+    display: revert;
+    box-sizing: border-box;
+}
+
+/*
+ * Re-assert the affordances `all: unset` strips but users still expect.
+ * Kept deliberately short — anything more belongs in fs-components.css.
+ */
+.fs-root a,
+.fs-root button,
+.fs-root [role="button"],
+.fs-root label,
+.fs-root summary {
+    cursor: pointer;
+}
+
+.fs-root button,
+.fs-root input,
+.fs-root select,
+.fs-root textarea {
+    /* Redundant after `all: unset` (these inherit already), but explicit so a
+       future edit to the reset can't silently break host-font inheritance. */
+    font-family: var(--fs-font-body);
+}
+
+.fs-root input,
+.fs-root textarea,
+.fs-root select {
+    /* `unset` also removes the caret/selection affordances on text inputs. */
+    cursor: auto;
+}
+
+.fs-root img,
+.fs-root svg,
+.fs-root video {
+    max-width: 100%;
+    /* `unset` makes replaced elements inline, which adds descender whitespace
+       under every product image. */
+    display: block;
+}
+
+.fs-root svg {
+    /* Icons are sized by width/height utilities in the components layer; this
+       just stops a missing size collapsing them to 0 or ballooning them. */
+    fill: none;
+    stroke: currentColor;
+}
+
+/* The listing root itself carries the inherited typography explicitly, so every
+   descendant has something concrete to inherit from even inside a shadow root
+   where there is no <body> in the tree. */
+.fs-root {
+    font-family: var(--fs-font-body);
+    font-size: var(--fs-font-size-base);
+    color: var(--fs-color-text);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+}
+
+/* Alpine sets this before it boots; it must exist in every root that hosts
+   Alpine markup, including each shadow root (the host page's copy of this rule
+   cannot cross a shadow boundary). */
+.fs-root [x-cloak],
+[x-cloak] {
+    display: none !important;
+}

@@ -1,0 +1,17 @@
+<!doctype html><html><head><meta charset="utf-8">
+<link rel="stylesheet" href="../../view/frontend/web/css/fs-tokens.css">
+<link rel="stylesheet" href="../../view/frontend/web/css/fs-base.css">
+<link rel="stylesheet" href="../../view/frontend/web/css/fs-components.css">
+</head><body>
+<div class="fs-root"><div class="fs-card">x</div><div class="fs-grid"></div></div>
+<!-- global-style-vars.phtml renders in before.body.end, on :root, exactly like this -->
+
+<pre id="out"></pre>
+<script>
+function p(s,k){var e=document.querySelector(s),c=getComputedStyle(e);
+ return k.map(function(x){return x+'='+c.getPropertyValue(x)}).join('  ');}
+document.getElementById('out').textContent =
+ 'mode : unset\n' +
+ 'card : '+p('.fs-card',['border-radius','border-top-width','box-shadow'])+'\n' +
+ 'grid : '+p('.fs-grid',['gap']);
+</script></body></html>

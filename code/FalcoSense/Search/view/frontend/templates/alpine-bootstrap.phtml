@@ -1,0 +1,88 @@
+<?php
+/**
+ * Loads Alpine.js — but only if the host theme hasn't already.
+ *
+ * Every FalcoSense surface (header overlay, search results, category PLP) is
+ * rendered client-side by Alpine: x-data / x-show / x-for. Until now the module
+ * shipped no Alpine and silently assumed the theme provided one. That holds on
+ * Hyvä, which puts Alpine on every page. On Luma — or any non-Hyvä theme —
+ * there is no Alpine, so every FalcoSense directive is an unrecognised HTML
+ * attribute and nothing renders at all.
+ *
+ * Double-loading Alpine is not harmless: two instances bind the same
+ * directives twice and Alpine logs "Alpine has already been initialized".
+ * So this deliberately does nothing when a compatible Alpine is already present.
+ *
+ * @var \Magento\Framework\View\Element\Template $block
+ * @var \Magento\Framework\Escaper $escaper
+ */
+$alpineUrl = $block->getViewFileUrl('FalcoSense_Search::js/vendor/alpine-3.17.4.min.js');
+?>
+<script>
+(function () {
+    'use strict';
+
+    var SRC = <?= /* @noEscape */ json_encode($alpineUrl) ?>;
+
+    /**
+     * Which major version of Alpine the host page already has, or 0 for none.
+     * Alpine 3 exposes Alpine.version; Alpine 2 did not, so a global with no
+     * version string is treated as 2.
+     */
+    function hostAlpineMajor() {
+        var A = window.Alpine;
+        if (!A) { return 0; }
+        var m = String(A.version || '').match(/^(\d+)/);
+        return m ? parseInt(m[1], 10) : 2;
+    }
+
+    /**
+     * Belt-and-braces for themes that load Alpine with `async` rather than
+     * `defer`. A deferred script has always executed by DOMContentLoaded, so
+     * hostAlpineMajor() sees it; an async one may not have, and we would load a
+     * second copy. Checking the DOM for an alpine script tag catches that.
+     */
+    function hostHasAlpineTag() {
+        var tags = document.getElementsByTagName('script');
+        for (var i = 0; i < tags.length; i++) {
+            var src = tags[i].src || '';
+            if (src && src !== SRC && /alpine(\.|-|\/)/i.test(src)) { return true; }
+        }
+        return false;
+    }
+
+    function load() {
+        var major = hostAlpineMajor();
+
+        if (major >= 3) { return; }          // host already provides a compatible Alpine
+
+        if (major === 2) {
+            // Loading 3 alongside 2 would leave both trying to own the same
+            // directives. Bail out loudly rather than corrupt the page.
+            if (window.console && console.warn) {
+                console.warn('[FalcoSense] Host theme ships Alpine 2; FalcoSense needs 3. ' +
+                             'Search UI will not render. Upgrade the theme\'s Alpine, or ' +
+                             'remove it and let FalcoSense load its own.');
+            }
+            return;
+        }
+
+        if (hostHasAlpineTag()) { return; }
+        if (window.__fsAlpineRequested) { return; }
+        window.__fsAlpineRequested = true;
+
+        var s = document.createElement('script');
+        s.src = SRC;
+        document.head.appendChild(s);
+    }
+
+    // Run at DOMContentLoaded: deferred scripts (how Hyvä loads Alpine) have all
+    // executed by then, so the detection above sees the host's copy. Running any
+    // earlier would race it and load a redundant second Alpine on every Hyvä page.
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', load, { once: true });
+    } else {
+        load();
+    }
+})();
+</script>

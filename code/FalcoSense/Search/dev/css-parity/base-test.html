@@ -1,0 +1,45 @@
+<!doctype html><html><head><meta charset="utf-8">
+<style>
+/* hostile host theme */
+body { font-family:"HostBrandFont",Georgia,serif; font-size:17px; color:#223344; }
+* { box-sizing: content-box; }
+button { background:navy; color:yellow; padding:20px; border:4px dashed red; font-family:"HostBtn",cursive; font-size:22px; }
+ul { list-style:square inside; padding-left:44px; margin:30px; }
+a { color:hotpink; text-decoration:underline wavy; }
+h1 { font-size:60px; margin:50px; }
+img { border:6px solid lime; }
+input { font-family:"HostInput",monospace; font-size:21px; padding:14px; }
+p { margin:40px; line-height:3; }
+div { background: #ffdddd; }
+</style>
+<link rel="stylesheet" href="../../view/frontend/web/css/fs-tokens.css">
+<link rel="stylesheet" href="../../view/frontend/web/css/fs-base.css">
+</head><body>
+<div class="fs-root">
+  <h1>h</h1><p>p</p><ul><li>li</li></ul><a href="#">a</a><button>b</button><input value="i">
+  <img src="data:image/gif;base64,R0lGODlhAQABAAAAACw="><div class="inner">d</div>
+</div>
+<div id="outside"><button>outside</button><p>outside p</p></div>
+<pre id="out"></pre>
+<script>
+function p(sel,props){var e=document.querySelector(sel);if(!e)return'MISSING';var c=getComputedStyle(e);
+ return props.map(function(k){return k+'='+c.getPropertyValue(k)}).join('  ');}
+var L=[];function r(l,s){L.push(l.padEnd(26)+s);}
+L.push('--- host font must be inherited everywhere ---');
+r('p',      p('.fs-root p',['font-family','font-size']));
+r('button', p('.fs-root button',['font-family','font-size']));
+r('input',  p('.fs-root input',['font-family','font-size']));
+L.push('');
+L.push('--- host decoration must be gone ---');
+r('button', p('.fs-root button',['background-color','border-top-width','padding-top','cursor']));
+r('ul',     p('.fs-root ul',['list-style-type','padding-left','margin-top']));
+r('a',      p('.fs-root a',['color','text-decoration-line','cursor']));
+r('img',    p('.fs-root img',['border-top-width','display','max-width']));
+r('p',      p('.fs-root p',['margin-top','line-height','box-sizing']));
+r('inner div', p('.fs-root .inner',['background-color','display']));
+L.push('');
+L.push('--- OUTSIDE .fs-root must be untouched (no leak-out) ---');
+r('outside button', p('#outside button',['font-family','background-color','padding-top']));
+r('outside p',      p('#outside p',['margin-top','line-height']));
+document.getElementById('out').textContent=L.join('\n');
+</script></body></html>

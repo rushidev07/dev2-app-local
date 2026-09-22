@@ -6,7 +6,23 @@ namespace FalcoSense\Search\Block;
 use Magento\Framework\View\Element\Template;
 
 /**
- * Assigned to the "header-search" block via view/frontend/layout/default.xml.
+ * The FalcoSense header search form.
+ *
+ * Mounted twice in view/frontend/layout/default.xml, once per theme family,
+ * because there is no single block name that exists everywhere:
+ *
+ *   - Hyvä-family themes name their header search block "header-search", so we
+ *     take it over with <referenceBlock name="header-search">.
+ *   - Luma-family themes have no such block; Magento_Search declares
+ *     "top.search" inside the "header-wrapper" container instead. There we
+ *     remove the native block and add our own into "header.container", which
+ *     is defined by Magento's core page layouts and therefore present on any
+ *     theme built on them.
+ *
+ * A referenceBlock naming a block that does not exist is silently ignored by
+ * Magento, so each mount is inert on the theme family it isn't for. But on a
+ * theme where BOTH names somehow resolve, we would render two search forms —
+ * hence the guard in _toHtml() below.
  *
  * Magento's layout merge always lets theme-level layout files win over module
  * layout files for the "template" attribute — confirmed directly via Magento's
@@ -23,8 +39,33 @@ use Magento\Framework\View\Element\Template;
  */
 class HeaderSearchForm extends Template
 {
+    /**
+     * The block name used by the Hyvä-family mount. The Luma-family mount uses
+     * a different name and defers to this one whenever it is present.
+     */
+    private const PRIMARY_BLOCK_NAME = 'header-search';
+
     public function getTemplate()
     {
         return "FalcoSense_Search::html/header/search-form.phtml";
+    }
+
+    /**
+     * Render nothing if this is the Luma-family fallback mount and the
+     * Hyvä-family one already exists on this page — otherwise a theme that
+     * happens to satisfy both would show the search form twice.
+     */
+    protected function _toHtml()
+    {
+        $layout = $this->getLayout();
+
+        if ($layout
+            && $this->getNameInLayout() !== self::PRIMARY_BLOCK_NAME
+            && $layout->getBlock(self::PRIMARY_BLOCK_NAME)
+        ) {
+            return '';
+        }
+
+        return parent::_toHtml();
     }
 }

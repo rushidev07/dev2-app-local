@@ -1,0 +1,108 @@
+/*
+ * FalcoSense design tokens — THE PUBLIC OVERRIDE API.
+ * ---------------------------------------------------------------------------
+ * This file is the supported way for a storefront to restyle FalcoSense.
+ * A merchant's theme redeclares any of these on :root (in its own stylesheet,
+ * loaded after ours) and the whole listing UI follows. Nothing here is
+ * !important, so a theme always wins on these properties.
+ *
+ * Everything NOT tokenised — internal layout, box model, structural spacing —
+ * is deliberately defended in fs-base.css, because a theme accidentally
+ * changing those is the bug we are fixing, not a feature.
+ *
+ * TYPOGRAPHY IS INHERITED BY DEFAULT. FalcoSense wears the host store's font,
+ * at the host store's size. That is a product decision: the listing should
+ * look like it belongs to the shop it is installed in, not like a widget
+ * someone embedded. A merchant who wants it to look distinct sets
+ * --fs-font-body to something concrete.
+ */
+:root {
+    /* ---- Typography (inherit = wear the host store's type) ---- */
+    --fs-font-body: inherit;
+    --fs-font-heading: inherit;
+    --fs-font-size-base: inherit;
+
+    /* Sizes are relative to the host's base size, so the listing scales with
+       the store's own typography instead of fighting it. */
+    --fs-text-xs: 0.75rem;
+    --fs-text-sm: 0.875rem;
+    --fs-text-base: 1rem;
+    --fs-text-lg: 1.125rem;
+    --fs-text-2xl: 1.5rem;
+
+    --fs-weight-normal: 400;
+    --fs-weight-semibold: 600;
+    --fs-weight-bold: 700;
+    --fs-weight-extrabold: 800;
+
+    /* ---- Brand palette ---- */
+    --fs-color-accent: #0d2f47;          /* primary brand / headings / prices */
+    --fs-color-accent-light: #064f84;
+    --fs-color-sale: #d83a3a;            /* "Deal", sale price, discount badge */
+    --fs-color-surface: #efeadd;         /* page/listing background */
+    --fs-color-card: #ffffff;
+    --fs-color-text: #374151;
+    --fs-color-text-muted: #6b7280;
+    --fs-color-text-subtle: #9ca3af;     /* struck-through original price */
+    --fs-color-border: #e5e7eb;
+    --fs-color-border-strong: #9ca3af;
+    --fs-color-in-stock: #258635;
+    --fs-color-error: #ea4436;
+
+    /* ---- Shape ----
+       The card values deliberately defer to the --ahy-card-* custom properties
+       emitted at runtime by templates/global-style-vars.phtml, which derive
+       them from the admin config under Stores > Configuration (product card
+       corner radius, border/shadow style, grid spacing and columns-per-row).
+
+       Writing them as var(--ahy-…, <default>) keeps that admin panel working:
+       a merchant who sets an 8px radius still gets 8px. Hardcoding a value here
+       would silently override their setting. The fallback after the comma is
+       what applies on a store where that template hasn't rendered yet. */
+    --fs-radius-card: var(--ahy-card-radius, 0);
+    --fs-border-card: var(--ahy-card-border, none);
+    --fs-shadow-card: var(--ahy-card-shadow, none);
+
+    --fs-radius-control: 9999px;         /* pills: filter chips, buttons */
+    --fs-radius-panel: 0.75rem;          /* dropdowns, notices */
+    --fs-shadow-panel: 0 10px 15px -3px rgb(0 0 0 / 0.1);
+
+    /* ---- Spacing scale (mirrors the values the templates already used) ---- */
+    --fs-space-1: 0.25rem;
+    --fs-space-2: 0.5rem;
+    --fs-space-3: 0.75rem;
+    --fs-space-4: 1rem;
+    --fs-space-6: 1.5rem;
+    --fs-space-8: 2rem;
+
+    /* Also admin-driven — see the note on --fs-radius-card above.
+       --ahy-grid-gap comes from the "card spacing" setting; --ahy-grid-columns
+       from "columns per row" (applied at the xl breakpoint only, matching the
+       existing .ahy-product-grid rule that global-style-vars.phtml emits). */
+    --fs-grid-gap: var(--ahy-grid-gap, 0.125rem);
+    --fs-grid-columns: var(--ahy-grid-columns, 3);
+
+    /* ---- Product card ---- */
+    --fs-card-image-size: 244px;
+    --fs-card-title-lines: 2;
+
+    /* ---- Loading indicator ----
+       Defaults to a CSS spinner so the module needs no image asset and works on
+       any store out of the box. Previously this was a hard-coded
+       url(/media/icons/everest-loading-icon.gif), which 404s everywhere except
+       Everest.
+
+       To use your own image instead, set BOTH:
+           --fs-loader-image: url("/media/your-loader.gif");
+           --fs-loader-spinner-display: none;
+       (The second one turns off the built-in spinner so they don't overlap.) */
+    --fs-loader-image: none;
+    --fs-loader-spinner-display: block;
+    --fs-loader-size: 100px;
+    --fs-loader-thickness: 3px;
+    --fs-loader-track: rgb(0 0 0 / 0.12);
+    --fs-loader-color: var(--fs-color-accent);
+
+    /* ---- Motion ---- */
+    --fs-transition: 150ms ease;
+}
