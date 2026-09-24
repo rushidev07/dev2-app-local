@@ -7,8 +7,11 @@
 html{font-size:16px}
 /* Tailwind preflight fragment the reference build omitted — border-2 sets
    width only and relies on this for style/colour. Without it the reference
-   side computes border-width:0, which is not what Everest renders. */
-#old *,#old *::before,#old *::after{border-width:0;border-style:solid;border-color:#e5e7eb}
+   side computes border-width:0, which is not what Everest renders.
+   Scoped via :where() so it contributes ZERO specificity, exactly like real
+   preflight — a plain `#old *` selector scores (1,0,0) and would beat the
+   utility classes it is meant to sit underneath. */
+:where(#old,#oldf,#oldm,#oldb) *,:where(#old,#oldf,#oldm,#oldb) *::before,:where(#old,#oldf,#oldm,#oldb) *::after{border-width:0;border-style:solid;border-color:#e5e7eb}
 </style>
 </head><body>
 <!-- OLD: original Tailwind class lists, verbatim from the templates -->
@@ -29,9 +32,109 @@ html{font-size:16px}
    </div>
   </div>
   <div class="absolute left-3 top-3 z-10">b</div>
+  <span class="rounded border-2 border-ahy-stock-green bg-white px-2 py-1 text-xs font-semibold text-ahy-stock-green">3 Left</span>
+  <button class="absolute top-2.5 right-2.5 z-10 w-9 h-9 rounded-full border border-gray-300 bg-white flex items-center justify-center text-ahy-blue hover:text-red-500 shadow-sm transition">w</button>
  </div>
 </div>
 
+<!-- OLD: filters, verbatim Tailwind -->
+<div id="oldf">
+ <div class="border-t border-gray-200 py-4">
+  <button class="flex items-center justify-between w-full mb-3">
+   <span class="font-bold text-ahy-blue text-sm">Price</span>
+   <svg class="w-4 h-4 text-ahy-blue transition-transform"></svg>
+  </button>
+  <ul class="space-y-2.5">
+   <li><label class="flex items-center gap-2.5 cursor-pointer group">
+    <span class="w-4 h-4 border border-gray-400 rounded-sm flex-shrink-0 flex items-center justify-center transition-colors bg-white"></span>
+    <span class="text-sm text-gray-700 flex-1 leading-tight">Under $50</span>
+    <span class="text-sm text-gray-400 shrink-0">(12)</span>
+   </label></li>
+   <li><span class="chk2 w-4 h-4 border rounded-sm flex-shrink-0 flex items-center justify-center bg-ahy-blue border-ahy-blue"></span></li>
+   <li><svg class="tick w-3 h-3 text-white"></svg></li>
+   <li><button class="text-sm font-bold text-ahy-blue hover:underline">See More +</button></li>
+  </ul>
+ </div>
+</div>
+
+<div id="newf" class="fs-root">
+ <div class="fs-filter-group">
+  <button class="fs-filter-group__toggle">
+   <span class="fs-filter-group__label">Price</span>
+   <svg class="fs-filter-group__chevron"></svg>
+  </button>
+  <ul class="fs-filter-list">
+   <li><label class="fs-filter-option">
+    <span class="fs-checkbox"></span>
+    <span class="fs-filter-option__label">Under $50</span>
+    <span class="fs-filter-option__count">(12)</span>
+   </label></li>
+   <li><span class="chk2 fs-checkbox is-checked"></span></li>
+   <li><svg class="tick fs-checkbox__tick"></svg></li>
+   <li><button class="fs-filter-more">See More +</button></li>
+  </ul>
+ </div>
+</div>
+
+<!-- OLD: modal shell, verbatim Tailwind -->
+<div id="oldm">
+ <div class="mshell ahy-results-rederer flex lg:px-6 pb-16 relative"></div>
+ <div class="msidecount border-ahy-blue border-b-2 mb-0 pb-3"></div>
+ <div class="mchips flex flex-wrap gap-2 mb-2 mt-4"></div>
+ <span class="mchip bg-ahy-blue cursor-pointer gap-1 inline-flex items-center px-3 py-1 rounded-full text-white text-xs">x</span>
+ <a class="mclear text-ahy-blue text-xs underline">clear</a>
+ <div class="mmain flex-1 min-w-0 pt-6"></div>
+ <nav class="mmenu absolute bg-white border border-gray-200 py-1 right-0 rounded-xl shadow-lg top-8 w-52 z-50"></nav>
+ <button class="mitem hover:bg-gray-50 px-4 py-2.5 text-left text-sm w-full">i</button>
+ <button class="mitemlg px-4 py-3 text-left text-sm w-full">i</button>
+ <div class="mnotice bg-white border border-gray-200 mb-4 px-4 py-3 rounded-xl text-gray-600 text-sm">n</div>
+ <a class="mlink cursor-pointer font-semibold hover:underline text-ahy-blue">l</a>
+ <div class="mpager flex gap-8 items-center justify-center pb-4 pt-10"></div>
+ <button class="mpbtn bg-white border border-gray-200 flex h-12 items-center justify-center rounded-full shadow-lg w-12">p</button>
+ <button class="mpill bg-[#efeadd] border-2 border-ahy-blue flex-shrink-0 font-bold px-6 py-2.5 rounded-full text-ahy-blue text-sm">f</button>
+ <div class="mdhead bg-white border-b border-gray-200 flex items-center justify-between px-4 py-4 sticky top-0 z-10"></div>
+ <button class="mdclose flex h-8 items-center justify-center leading-none text-gray-500 text-xl w-8">x</button>
+ <div class="mdbody flex-1 pb-8 px-4"></div>
+ <p class="mzero text-xl sm:text-2xl lg:text-3xl font-bold leading-snug mb-6 sm:mb-8">z</p>
+</div>
+
+<div id="newm" class="fs-root">
+ <div class="mshell fs-results-row"></div>
+ <div class="msidecount fs-sidebar__count"></div>
+ <div class="mchips fs-chips"></div>
+ <span class="mchip fs-chip">x</span>
+ <a class="mclear fs-clear-all">clear</a>
+ <div class="mmain fs-main"></div>
+ <nav class="mmenu fs-menu"></nav>
+ <button class="mitem fs-menu__item">i</button>
+ <button class="mitemlg fs-menu__item fs-menu__item--lg">i</button>
+ <div class="mnotice fs-notice">n</div>
+ <a class="mlink fs-link">l</a>
+ <div class="mpager fs-pager"></div>
+ <button class="mpbtn fs-pager__btn">p</button>
+ <button class="mpill fs-pill-btn">f</button>
+ <div class="mdhead fs-drawer__head"></div>
+ <button class="mdclose fs-drawer__close">x</button>
+ <div class="mdbody fs-drawer__body"></div>
+ <p class="mzero fs-zero__heading">z</p>
+</div>
+
+<div id="oldb">
+ <div class="cfoot flex items-center justify-between"></div>
+ <p class="cship capitalize !text-gray-900 !font-semibold !text-sm text-wrap">FREE Shipping</p>
+ <div class="cwrap w-full mt-auto pt-3 max-w-[160px]"></div>
+ <button class="cbtno capitalize !flex justify-center items-center gap-2 w-full !bg-transparent !text-ahy-blue !text-sm !py-1.5 !px-2.5 font-bold !border-2 !border-ahy-blue">a</button>
+ <button class="cbtnf capitalize !flex justify-center items-center gap-2 w-full bg-ahy-blue !text-white !text-sm !py-1.5 !px-2.5 font-bold !border-2 !border-ahy-blue">a</button>
+ <img class="cicon w-4 h-4 shrink-0 object-contain">
+</div>
+<div id="newb" class="fs-root">
+ <div class="cfoot fs-card__footer"></div>
+ <p class="cship fs-card__shipping">FREE Shipping</p>
+ <div class="cwrap fs-card__cta-wrap"></div>
+ <button class="cbtno fs-btn fs-btn--outline">a</button>
+ <button class="cbtnf fs-btn fs-btn--filled">a</button>
+ <img class="cicon fs-btn__icon">
+</div>
 <!-- NEW: semantic classes -->
 <div id="new" class="fs-root">
  <div class="fs-card">
@@ -50,6 +153,8 @@ html{font-size:16px}
    </div>
   </div>
   <div class="fs-card__badge">b</div>
+  <span class="fs-card__stock-badge">3 Left</span>
+  <button class="fs-card__wishlist">w</button>
  </div>
 </div>
 <pre id="out"></pre>
@@ -68,6 +173,44 @@ var PAIRS = [
  ['was',       '#old .line-through',            '#new .fs-card__price-was',   ['font-size','line-height','color','text-decoration-line']],
  ['from',      '#old .capitalize.text-ahy-red', '#new .fs-card__price-from',  ['font-size','font-weight','text-transform','color']],
  ['optionsBtn','#old .justify-center',          '#new .fs-card__options-btn', ['display','justify-content','align-items','width','padding-top','padding-left','border-top-width','border-top-color','border-top-style','border-radius','background-color','color','font-size','font-weight','text-transform']],
+ ['stockBadge','#old .border-ahy-stock-green',  '#new .fs-card__stock-badge', ['padding-top','padding-left','border-top-width','border-top-color','border-radius','background-color','color','font-size','font-weight']],
+ ['wishlist',  '#old .rounded-full',            '#new .fs-card__wishlist',    ['position','top','right','z-index','width','height','display','align-items','justify-content','border-top-width','border-top-color','border-radius','background-color','color']],  /* box-shadow omitted: Tailwind emits two transparent ring placeholders before the real layer, so the computed string differs while the rendering is identical */
+ ['fGroup',    '#oldf > div',                  '#newf .fs-filter-group',        ['border-top-width','border-top-color','padding-top','padding-bottom']],
+ ['fToggle',   '#oldf button.flex',            '#newf .fs-filter-group__toggle',['display','align-items','justify-content','width','margin-bottom']],
+ ['fLabel',    '#oldf .font-bold.text-sm',     '#newf .fs-filter-group__label', ['font-size','line-height','font-weight','color']],
+ ['fChevron',  '#oldf svg.w-4',                '#newf .fs-filter-group__chevron',['width','height','color']],
+ ['fListGap',  '#oldf ul li:nth-child(2)',     '#newf ul li:nth-child(2)',      ['margin-top']],
+ ['fOption',   '#oldf label',                  '#newf .fs-filter-option',       ['display','align-items','gap','cursor']],
+ ['fCheckbox', '#oldf label > span:first-child','#newf .fs-filter-option > .fs-checkbox', ['width','height','flex-shrink','display','align-items','justify-content','border-top-width','border-top-color','border-radius','background-color']],
+ ['fChecked',  '#oldf .chk2',                  '#newf .chk2',                   ['background-color','border-top-color']],
+ ['fTick',     '#oldf .tick',                  '#newf .tick',                   ['width','height','color']],
+ ['fOptLabel', '#oldf .text-gray-700',         '#newf .fs-filter-option__label',['flex-grow','font-size','line-height','color']],
+ ['fOptCount', '#oldf .text-gray-400',         '#newf .fs-filter-option__count',['flex-shrink','font-size','color']],
+ ['fMore',     '#oldf button.hover\\:underline','#newf .fs-filter-more',       ['font-size','font-weight','color']],
+ ['mShell',    '#oldm .mshell',     '#newm .mshell',     ['position','display','padding-bottom']],
+ ['mSideCount','#oldm .msidecount', '#newm .msidecount', ['border-bottom-width','border-bottom-color','padding-bottom','margin-bottom']],
+ ['mChips',    '#oldm .mchips',     '#newm .mchips',     ['display','flex-wrap','gap','margin-top','margin-bottom']],
+ ['mChip',     '#oldm .mchip',      '#newm .mchip',      ['display','align-items','gap','padding-top','padding-left','border-radius','background-color','color','font-size']],
+ ['mClear',    '#oldm .mclear',     '#newm .mclear',     ['font-size','color','text-decoration-line']],
+ ['mMain',     '#oldm .mmain',      '#newm .mmain',      ['flex-grow','min-width','padding-top']],
+ ['mMenu',     '#oldm .mmenu',      '#newm .mmenu',      ['position','top','right','width','z-index','padding-top','border-top-width','border-top-color','border-radius','background-color']],
+ ['mItem',     '#oldm .mitem',      '#newm .mitem',      ['width','text-align','padding-top','padding-left','font-size','line-height']],
+ ['mItemLg',   '#oldm .mitemlg',    '#newm .mitemlg',    ['width','text-align','padding-top','padding-left','font-size']],
+ ['mNotice',   '#oldm .mnotice',    '#newm .mnotice',    ['margin-bottom','padding-top','padding-left','border-top-width','border-radius','background-color','font-size','color']],
+ ['mLink',     '#oldm .mlink',      '#newm .mlink',      ['color','font-weight','cursor']],
+ ['mPager',    '#oldm .mpager',     '#newm .mpager',     ['display','align-items','justify-content','gap','padding-top','padding-bottom']],
+ ['mPagerBtn', '#oldm .mpbtn',      '#newm .mpbtn',      ['width','height','display','align-items','justify-content','border-top-width','border-top-color','border-radius','background-color']],
+ ['mPill',     '#oldm .mpill',      '#newm .mpill',      ['flex-shrink','padding-top','padding-left','border-top-width','border-top-color','border-radius','background-color','color','font-size','font-weight']],
+ ['mDrawerHd', '#oldm .mdhead',     '#newm .mdhead',     ['position','top','z-index','display','align-items','justify-content','padding-top','border-bottom-width','background-color']],
+ ['mDrawerX',  '#oldm .mdclose',    '#newm .mdclose',    ['width','height','display','align-items','justify-content','font-size','line-height','color']],
+ ['mDrawerBd', '#oldm .mdbody',     '#newm .mdbody',     ['flex-grow','padding-left','padding-bottom']],
+ ['mZero',     '#oldm .mzero',      '#newm .mzero',      ['font-size','line-height','font-weight','margin-bottom']],
+ ['cFooter',   '#oldb .cfoot',  '#newb .cfoot',  ['display','align-items','justify-content']],
+ ['cShipping', '#oldb .cship',  '#newb .cship',  ['text-transform','font-size','line-height','font-weight','color']],
+ ['cCtaWrap',  '#oldb .cwrap',  '#newb .cwrap',  ['width','max-width','margin-top','padding-top']],
+ ['cBtnOut',   '#oldb .cbtno',  '#newb .cbtno',  ['display','justify-content','align-items','gap','width','padding-top','padding-left','border-top-width','border-top-color','background-color','color','font-size','font-weight','text-transform']],
+ ['cBtnFill',  '#oldb .cbtnf',  '#newb .cbtnf',  ['background-color','color','border-top-color']],
+ ['cIcon',     '#oldb .cicon',  '#newb .cicon',  ['width','height','flex-shrink','object-fit']],
  ['badge',     '#old .absolute',                '#new .fs-card__badge',       ['position','left','top','z-index']]
 ];
 var L=[], pass=0, fail=0;

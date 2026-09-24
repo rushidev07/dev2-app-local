@@ -245,11 +245,16 @@ $platformStoreId = (int) $block->getPlatformStoreId();
                 + '</div>';
             return;
         }
+        /* Placeholder comes from admin config (Stores > Configuration >
+           FalcoSense > PLP). It was one merchant's CDN URL written here three
+           times, which every other storefront would have served. */
+        var fallbackImg = (window.FalcoSense && FalcoSense.fallbackImage()) || '';
+
         el.grid.innerHTML = products.map(function (p) {
             var url    = p.url_key ? '/' + p.url_key + '.html' : '#';
             var imgSrc = p.image
-                ? (imgUrl(p.image) || 'https://static.everest.com/media/.thumbswysiwyg/everest-logo_2_.png')
-                : 'https://static.everest.com/media/.thumbswysiwyg/everest-logo_2_.png';
+                ? (imgUrl(p.image) || fallbackImg)
+                : fallbackImg;
             var imgStyle = p.image ? '' : ' style="opacity:0.45"';
             var isDeal = p.special_price && p.special_price < p.price;
 
@@ -268,7 +273,7 @@ $platformStoreId = (int) $block->getPlatformStoreId();
             return '<div class="ahy-card">'
                 + '<a href="' + esc(url) + '" style="display:block;">'
                 + '<img src="' + esc(imgSrc) + '" alt="' + esc(p.name) + '" class="ahy-card-img" loading="lazy"' + imgStyle
-                + ' onerror="if(this.dataset.fb)return;this.dataset.fb=1;this.onerror=null;this.src=\'https://static.everest.com/media/.thumbswysiwyg/everest-logo_2_.png\';this.style.opacity=\'0.45\';">'
+                + ' onerror="if(this.dataset.fb)return;this.dataset.fb=1;this.onerror=null;this.src=\'' + esc(fallbackImg) + '\';this.style.opacity=\'0.45\';">'
                 + '</a>'
                 + '<div class="ahy-card-body">'
                 + '<a href="' + esc(url) + '" class="ahy-card-name">' + esc(p.name) + '</a>'

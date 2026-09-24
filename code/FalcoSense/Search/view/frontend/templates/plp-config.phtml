@@ -1,0 +1,26 @@
+<?php
+/**
+ * FalcoSense PLP configuration.
+ *
+ * Publishes the per-store values that the PLP components read off
+ * window.FalcoSense.config (see web/js/plp/runtime.js for what each one does).
+ *
+ * These used to be Everest's values written here as literals, with a note that
+ * a non-Everest storefront had to override this template. They come from
+ * Stores > Configuration > FalcoSense > PLP now, so the module file is the same
+ * on every storefront.
+ *
+ * Object.assign rather than assignment: a host storefront may set its own keys
+ * on window.FalcoSense.config before this runs, and overwriting the object
+ * would silently drop them.
+ *
+ * @var \FalcoSense\Search\Block\Plp\Config $block
+ */
+?>
+<script>
+    window.FalcoSense = window.FalcoSense || {};
+    window.FalcoSense.config = Object.assign(
+        window.FalcoSense.config || {},
+        <?= /* @noEscape */ $block->getPlpConfigJson() ?>
+    );
+</script>

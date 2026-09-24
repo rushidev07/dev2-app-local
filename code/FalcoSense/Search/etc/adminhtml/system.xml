@@ -30,6 +30,14 @@
                     <source_model>Magento\Config\Model\Config\Source\Yesno</source_model>
                 </field>
 
+                <field id="header_mount" translate="label comment" type="select"
+                       sortOrder="7" showInDefault="1" showInWebsite="1" showInStore="1">
+                    <label>Header Search Mount</label>
+                    <comment><![CDATA[Where the search attaches in the header. <b>Automatic</b> detects the theme family and is correct for almost every store &mdash; only change this if the search box does not appear, or appears outside the header. This does not switch FalcoSense search on or off.]]></comment>
+                    <source_model>FalcoSense\Search\Model\Config\Source\HeaderMount</source_model>
+                    <depends><field id="frontend_enabled">1</field></depends>
+                </field>
+
                 <field id="enabled" translate="label" type="select"
                        sortOrder="10" showInDefault="1" showInWebsite="1" showInStore="1">
                     <label>Enable Sync</label>
@@ -149,6 +157,44 @@
                     <comment>Applies to the search results, category, and seller profile grids at desktop width (1280px+). Not applied to homepage sliders. Tablet width stays fixed at 2 columns.</comment>
                     <source_model>FalcoSense\Search\Model\Config\Source\ColumnsPerRow</source_model>
                     <backend_model>FalcoSense\Search\Model\Config\Backend\StyleValue</backend_model>
+                </field>
+
+            </group>
+
+            <group id="plp" translate="label" sortOrder="17"
+                   showInDefault="1" showInWebsite="1" showInStore="1">
+                <label>PLP</label>
+                <comment>Storefront-specific values the listing components need. These were hardcoded to one store's data until now; a store that leaves them blank simply gets the behaviour switched off, never an error.</comment>
+
+                <field id="fallback_image" translate="label comment" type="text"
+                       sortOrder="10" showInDefault="1" showInWebsite="1" showInStore="1">
+                    <label>Fallback Product Image</label>
+                    <comment>Shown when a product has no image or the image fails to load. A path relative to the site root, e.g. /media/placeholder.png, or a full URL. Leave blank to show nothing rather than a placeholder.</comment>
+                </field>
+
+                <field id="cdn_base" translate="label comment" type="text"
+                       sortOrder="20" showInDefault="1" showInWebsite="1" showInStore="1">
+                    <label>Image CDN Base URL</label>
+                    <comment>Origin that product images are rewritten to, e.g. https://static.example.com. Leave blank to serve images from this store's own /media.</comment>
+                </field>
+
+                <field id="free_shipping_sellers" translate="label comment" type="textarea"
+                       sortOrder="30" showInDefault="1" showInWebsite="1" showInStore="1">
+                    <label>Free Shipping Sellers</label>
+                    <comment>Comma-separated seller names whose products show a FREE Shipping badge on the card. Leave blank on a single-seller store — no badge is shown.</comment>
+                </field>
+
+                <field id="default_seller" translate="label comment" type="text"
+                       sortOrder="40" showInDefault="1" showInWebsite="1" showInStore="1">
+                    <label>Default Seller Name</label>
+                    <comment>Shown as "Sold By" when a product carries no seller. Leave blank to omit the line entirely.</comment>
+                </field>
+
+                <field id="scroll_offset" translate="label comment" type="text"
+                       sortOrder="50" showInDefault="1" showInWebsite="1" showInStore="1">
+                    <label>Scroll Offset (px)</label>
+                    <comment>Space left clear above the results when a filter or page change scrolls them into view. Set this to the height of a sticky header so results do not land underneath it. 0 for no offset.</comment>
+                    <validate>validate-digits</validate>
                 </field>
 
             </group>

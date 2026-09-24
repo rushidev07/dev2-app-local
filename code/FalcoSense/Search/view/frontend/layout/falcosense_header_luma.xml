@@ -1,0 +1,70 @@
+<?xml version="1.0"?>
+<!--
+    Luma-family header mount: removes Magento_Search's "top.search" and mounts
+    our own block into "header.container".
+
+    Activated by Observer\AddLayoutHandles when
+    Stores > Configuration > FalcoSense > General > Header Search Mount is set to
+    "Luma-family". Not loaded otherwise, so a store on the other theme family never has
+    this markup declared at all.
+
+    This used to live in default.xml alongside the other family's mount, with a
+    PHP guard meant to suppress whichever one was wrong. The guard could not work
+    — see Observer/AddLayoutHandles for why — and both mounts rendered.
+-->
+<page xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:noNamespaceSchemaLocation="urn:magento:framework:View/Layout/etc/page_configuration.xsd">
+    <body>
+        <!--
+            ===== Luma-family mount =====================================
+            Hyva-family themes expose "header-search", which the referenceBlock
+            above targets. Luma-family themes do not: Magento_Search puts its
+            search block at "top.search" inside "header-wrapper", so there the
+            override above matches nothing and FalcoSense's search never appears.
+            This mounts our own block into "header.container", declared by
+            Magento's core page layouts and therefore present on essentially any
+            theme built on them, Luma included.
+
+            Both removals are harmless no-ops on a theme that lacks the named
+            block, which is what makes it safe to declare both families here.
+
+            Child blocks carry DIFFERENT names but the SAME `as` aliases as their
+            counterparts above: block names are global and must be unique, while
+            getChildHtml() resolves by alias, which is parent-scoped. That is what
+            lets one template serve both mounts unchanged.
+
+            HeaderSearchForm::_toHtml() suppresses this mount when "header-search"
+            is present, so only one renders. Verified on dev2 2026-09-23: removing
+            this block entirely changed nothing, confirming it is already inert on
+            Hyva.
+        -->
+        <referenceBlock name="top.search" remove="true"/>
+
+        <referenceContainer name="header.container">
+            <block class="FalcoSense\Search\Block\HeaderSearchForm"
+                   name="falcosense_header_search"
+                   template="FalcoSense_Search::html/header/search-form.phtml">
+                <block class="Magento\Framework\View\Element\Template"
+                       name="falcosense_header_filters_desktop"
+                       as="header_filters_desktop"
+                       template="FalcoSense_Search::html/header/filters-desktop.phtml"/>
+                <block class="Magento\Framework\View\Element\Template"
+                       name="falcosense_header_filters_mobile"
+                       as="header_filters_mobile"
+                       template="FalcoSense_Search::html/header/filters-mobile.phtml"/>
+                <block class="Magento\Framework\View\Element\Template"
+                       name="falcosense_header_zero_results"
+                       as="header_zero_results"
+                       template="FalcoSense_Search::html/header/zero-results.phtml"/>
+                <block class="FalcoSense\Search\Block\ProductCard"
+                       name="falcosense_header_product_card_desktop"
+                       as="header_product_card_desktop"
+                       template="FalcoSense_Search::html/header/product-card-desktop.phtml"/>
+                <block class="FalcoSense\Search\Block\ProductCard"
+                       name="falcosense_header_product_card_mobile"
+                       as="header_product_card_mobile"
+                       template="FalcoSense_Search::html/header/product-card-mobile.phtml"/>
+            </block>
+        </referenceContainer>
+    </body>
+</page>

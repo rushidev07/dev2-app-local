@@ -184,8 +184,10 @@
     z-index: 10;
 }
 
+/* Was: rounded border-2 border-ahy-stock-green bg-white px-2 py-1 text-xs
+        font-semibold text-ahy-stock-green */
 .fs-root .fs-card__stock-badge {
-    padding: 0.125rem var(--fs-space-2);
+    padding: var(--fs-space-1) var(--fs-space-2);
     border: 2px solid var(--fs-color-in-stock);
     border-radius: 0.25rem;
     background-color: var(--fs-color-card);
@@ -194,6 +196,43 @@
     line-height: 1rem;
     font-weight: var(--fs-weight-semibold);
 }
+
+/* Wishlist / bookmark button pinned to the card's top-right.
+   Was: absolute top-2.5 right-2.5 z-10 w-9 h-9 rounded-full border
+        border-gray-300 bg-white flex items-center justify-center
+        text-ahy-blue hover:text-red-500 shadow-sm transition */
+.fs-root .fs-card__wishlist {
+    position: absolute;
+    top: 0.625rem;
+    right: 0.625rem;
+    z-index: 10;
+    width: 2.25rem;
+    height: 2.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--fs-color-border-strong-soft);
+    border-radius: var(--fs-radius-control);
+    background-color: var(--fs-color-card);
+    color: var(--fs-color-accent);
+    box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+    transition: color var(--fs-transition), background-color var(--fs-transition),
+                border-color var(--fs-transition);
+}
+
+.fs-root .fs-card__wishlist:hover {
+    color: var(--fs-color-wishlist-active);
+}
+
+.fs-root .fs-card__wishlist[disabled] {
+    cursor: default;
+}
+
+/* The inline SVG spinner Alpine swaps in while a wishlist/cart call is in
+   flight. Tailwind used bare opacity-25 / opacity-75 on the circle and path;
+   naming them stops those two utilities having to survive the conversion. */
+.fs-root .fs-spinner__track { opacity: 0.25; }
+.fs-root .fs-spinner__head  { opacity: 0.75; }
 
 /* ---- icons -------------------------------------------------------------- */
 
@@ -205,6 +244,7 @@
 
 .fs-root .fs-icon--sm { width: 0.875rem; height: 0.875rem; }
 .fs-root .fs-icon--lg { width: 1.25rem; height: 1.25rem; }
+.fs-root .fs-icon--xl { width: 1.5rem; height: 1.5rem; }
 
 /* Was: animate-spin */
 .fs-root .fs-icon--spin {
@@ -285,20 +325,1249 @@
    scoped loader introduced on 2026-09-15. Positioned against whichever
    FalcoSense layout row carries .fs-results-row, never the viewport, so the
    shopper can keep typing while results reload. */
+/*
+ * The overlay covers the whole listing area; the spinner inside it stays
+ * centred in the VIEWPORT.
+ *
+ * The overlay is as tall as the listing — and while loading, the listing holds
+ * --fs-plp-loading-min-height (1900px on search, 4500px on category) so the page
+ * does not collapse. Centring the spinner inside that box put it ~950px or
+ * ~2250px down the page: perfectly centred in the container, and completely off
+ * screen for anyone who had scrolled before filtering.
+ *
+ * align-items: flex-start stops the flex centring, and position: sticky on the
+ * spinner then pins it half a viewport down from whatever is currently visible.
+ * The result tracks the scroll position, so the spinner is centred on screen
+ * wherever the shopper happens to be.
+ */
 .fs-root .fs-loader-overlay {
     position: absolute;
     inset: 0;
     z-index: 20;
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: center;
     background-color: var(--fs-color-surface);
 }
 
 .fs-root .fs-loader-overlay .fs-loader {
     margin: 0;
+    position: sticky;
+    /* Half the viewport, less half the spinner, so its CENTRE lands mid-screen. */
+    top: calc(50vh - (var(--fs-loader-size, 100px) / 2));
 }
 
 @media (prefers-reduced-motion: reduce) {
     .fs-root .fs-loader::after { animation-duration: 2.4s; }
+}
+
+/* ===========================================================================
+   FILTERS  (html/header/filters-desktop.phtml, filters-mobile.phtml)
+
+   Two Tailwind patterns collapse into plain CSS here and are worth calling out:
+
+   1. `space-y-2.5` emitted `> :not([hidden]) ~ :not([hidden]) { margin-top }`.
+      Replaced by an explicit owl selector on .fs-filter-list.
+   2. `group` / `group-hover:border-ahy-blue` existed only so a checkbox could
+      react to hover on its parent label. In plain CSS that is just a descendant
+      hover rule, so the `group` class disappears entirely.
+
+   State that Alpine used to toggle by swapping utility strings is now a single
+   modifier class — see the template's :class bindings:
+      rotate-180                        -> .is-collapsed
+      bg-ahy-blue border-ahy-blue       -> .is-checked
+   =========================================================================== */
+
+/* Was: border-t border-gray-200 py-4 */
+.fs-root .fs-filter-group {
+    border-top: 1px solid var(--fs-color-border);
+    padding-top: var(--fs-space-4);
+    padding-bottom: var(--fs-space-4);
+}
+
+/* Was: flex items-center justify-between w-full mb-3 */
+.fs-root .fs-filter-group__toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    margin-bottom: var(--fs-space-3);
+}
+
+/* Was: font-bold text-ahy-blue text-sm */
+.fs-root .fs-filter-group__label {
+    font-size: var(--fs-text-sm);
+    line-height: 1.25rem;
+    font-weight: var(--fs-weight-bold);
+    color: var(--fs-color-accent);
+}
+
+/* Was: w-4 h-4 text-ahy-blue transition-transform (+ rotate-180 when collapsed) */
+.fs-root .fs-filter-group__chevron {
+    width: 1rem;
+    height: 1rem;
+    color: var(--fs-color-accent);
+    transition: transform var(--fs-transition);
+}
+
+.fs-root .fs-filter-group__chevron.is-collapsed {
+    transform: rotate(180deg);
+}
+
+/* Was: space-y-2.5 */
+.fs-root .fs-filter-list > * + * {
+    margin-top: 0.625rem;
+}
+
+/* Was: flex items-center gap-2.5 cursor-pointer group */
+.fs-root .fs-filter-option {
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+    cursor: pointer;
+}
+
+/* Was: w-4 h-4 border border-gray-400 rounded-sm flex-shrink-0 flex
+        items-center justify-center transition-colors, plus a :class swap
+        between "bg-ahy-blue border-ahy-blue" and "bg-white group-hover:border-ahy-blue" */
+.fs-root .fs-checkbox {
+    width: 1rem;
+    height: 1rem;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--fs-color-border-strong);
+    border-radius: 0.125rem;
+    background-color: var(--fs-color-card);
+    transition: background-color var(--fs-transition), border-color var(--fs-transition);
+}
+
+/* The former group-hover: — now an ordinary descendant hover. */
+.fs-root .fs-filter-option:hover .fs-checkbox {
+    border-color: var(--fs-color-accent);
+}
+
+.fs-root .fs-checkbox.is-checked {
+    background-color: var(--fs-color-accent);
+    border-color: var(--fs-color-accent);
+}
+
+/* The tick SVG. Desktop price uses w-3/h-3, categorical uses w-2.5/h-2.5. */
+.fs-root .fs-checkbox__tick {
+    width: 0.75rem;
+    height: 0.75rem;
+    color: #fff;
+}
+
+.fs-root .fs-checkbox__tick--sm {
+    width: 0.625rem;
+    height: 0.625rem;
+}
+
+/* Was: text-sm text-gray-700 flex-1 leading-tight */
+.fs-root .fs-filter-option__label {
+    flex: 1 1 0%;
+    font-size: var(--fs-text-sm);
+    line-height: 1.25;
+    color: var(--fs-color-text);
+}
+
+/* Was: text-sm text-gray-400 shrink-0 */
+.fs-root .fs-filter-option__count {
+    flex-shrink: 0;
+    font-size: var(--fs-text-sm);
+    line-height: 1.25rem;
+    color: var(--fs-color-text-subtle);
+}
+
+/* Was: text-sm font-bold text-ahy-blue hover:underline */
+.fs-root .fs-filter-more {
+    font-size: var(--fs-text-sm);
+    line-height: 1.25rem;
+    font-weight: var(--fs-weight-bold);
+    color: var(--fs-color-accent);
+}
+
+.fs-root .fs-filter-more:hover {
+    text-decoration-line: underline;
+}
+
+/* ===========================================================================
+   MODAL SHELL  (html/header/search-form.phtml)
+   Title, results row, sidebar, sort menu, mobile filter drawer, pagination.
+   =========================================================================== */
+
+/* Was: pt-8 pb-0 px-4 lg:px-0 */
+.fs-root .fs-modal__head { padding-top: var(--fs-space-8); padding-left: var(--fs-space-4); padding-right: var(--fs-space-4); }
+@media (min-width: 1024px) { .fs-root .fs-modal__head { padding-left: 0; padding-right: 0; } }
+
+/* Was: ahy-results-rederer flex lg:px-6 pb-16 relative */
+.fs-root .fs-results-row { position: relative; display: flex; padding-bottom: 4rem; }
+@media (min-width: 1024px) { .fs-root .fs-results-row { padding-left: var(--fs-space-6); padding-right: var(--fs-space-6); gap: 3rem; } }
+
+/* Was: ahy-filters hidden md:block shrink-0 pt-6 pr-6 */
+.fs-root .fs-sidebar { display: none; flex-shrink: 0; padding-top: var(--fs-space-6); padding-right: var(--fs-space-6); }
+@media (min-width: 768px) { .fs-root .fs-sidebar { display: block; width: 285px; } }
+
+/* Was: border-b-2 border-ahy-blue pb-3 mb-0 */
+.fs-root .fs-sidebar__count { border-bottom: 2px solid var(--fs-color-accent); padding-bottom: var(--fs-space-3); margin-bottom: 0; }
+
+/* Was: flex flex-wrap gap-2 mt-4 mb-2 */
+.fs-root .fs-chips { display: flex; flex-wrap: wrap; gap: var(--fs-space-2); margin-top: var(--fs-space-4); margin-bottom: var(--fs-space-2); }
+
+/* Was: inline-flex items-center gap-1 bg-ahy-blue text-white text-xs px-3 py-1 rounded-full cursor-pointer */
+.fs-root .fs-chip {
+    display: inline-flex; align-items: center; gap: var(--fs-space-1);
+    padding: var(--fs-space-1) var(--fs-space-3);
+    border-radius: var(--fs-radius-control);
+    background-color: var(--fs-color-accent);
+    color: #fff; font-size: var(--fs-text-xs); line-height: 1rem; cursor: pointer;
+}
+
+/* Was: text-xs text-ahy-blue underline */
+.fs-root .fs-clear-all { font-size: var(--fs-text-xs); line-height: 1rem; color: var(--fs-color-accent); text-decoration-line: underline; }
+
+/* Was: flex-1 min-w-0 pt-6 */
+.fs-root .fs-main { flex: 1 1 0%; min-width: 0; padding-top: var(--fs-space-6); }
+
+/* ---- sort dropdown ------------------------------------------------------ */
+
+/* Was: hidden md:flex items-center justify-end mb-5 */
+.fs-root .fs-sortbar { display: none; }
+@media (min-width: 768px) { .fs-root .fs-sortbar { display: flex; align-items: center; justify-content: flex-end; margin-bottom: 1.25rem; } }
+
+/* Was: relative flex items-center gap-1 text-sm text-ahy-blue */
+.fs-root .fs-sort { position: relative; display: flex; align-items: center; gap: var(--fs-space-1); font-size: var(--fs-text-sm); line-height: 1.25rem; color: var(--fs-color-accent); }
+
+/* Was: font-bold flex items-center gap-1 ml-1 */
+.fs-root .fs-sort__btn { display: flex; align-items: center; gap: var(--fs-space-1); margin-left: var(--fs-space-1); font-weight: var(--fs-weight-bold); }
+
+/* Was: absolute right-0 top-8 w-52 bg-white border border-gray-200 rounded-xl shadow-lg py-1 z-50 */
+.fs-root .fs-menu {
+    position: absolute; top: 2rem; right: 0; width: 13rem; z-index: 50;
+    padding-top: var(--fs-space-1); padding-bottom: var(--fs-space-1);
+    border: 1px solid var(--fs-color-border);
+    border-radius: var(--fs-radius-panel);
+    background-color: var(--fs-color-card);
+    box-shadow: var(--fs-shadow-panel);
+}
+.fs-root .fs-menu--left { right: auto; left: 0; }
+
+/* Was: w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 */
+.fs-root .fs-menu__item { width: 100%; text-align: left; padding: 0.625rem var(--fs-space-4); font-size: var(--fs-text-sm); line-height: 1.25rem; }
+.fs-root .fs-menu__item--center { text-align: center; }
+.fs-root .fs-menu__item:hover { background-color: var(--fs-color-menu-hover); }
+/* Was: w-full text-left px-4 py-3 text-sm — mobile drawer variant, no hover */
+.fs-root .fs-menu__item--lg { padding: var(--fs-space-3) var(--fs-space-4); }
+
+/* ---- notices / links ---------------------------------------------------- */
+
+/* Was: mb-4 px-4 py-3 bg-white rounded-xl border border-gray-200 text-sm text-gray-600 */
+.fs-root .fs-notice {
+    margin-bottom: var(--fs-space-4);
+    padding: var(--fs-space-3) var(--fs-space-4);
+    border: 1px solid var(--fs-color-border);
+    border-radius: var(--fs-radius-panel);
+    background-color: var(--fs-color-card);
+    font-size: var(--fs-text-sm); line-height: 1.25rem;
+    color: var(--fs-color-text-muted-strong);
+}
+
+/* Was: text-ahy-blue font-semibold hover:underline cursor-pointer (+ ml-1) */
+.fs-root .fs-link { color: var(--fs-color-accent); font-weight: var(--fs-weight-semibold); cursor: pointer; }
+.fs-root .fs-link:hover { text-decoration-line: underline; }
+.fs-root .fs-link--inline { margin-left: var(--fs-space-1); }
+
+/* ---- pagination --------------------------------------------------------- */
+
+/* Was: flex justify-center items-center gap-8 pt-10 pb-4 */
+.fs-root .fs-pager { display: flex; align-items: center; justify-content: center; gap: var(--fs-space-8); padding-top: 2.5rem; padding-bottom: var(--fs-space-4); }
+
+/* Was: bg-white shadow-lg rounded-full w-12 h-12 flex items-center justify-center border border-gray-200 */
+.fs-root .fs-pager__btn {
+    width: 3rem; height: 3rem; display: flex; align-items: center; justify-content: center;
+    border: 1px solid var(--fs-color-border);
+    border-radius: var(--fs-radius-control);
+    background-color: var(--fs-color-card);
+    box-shadow: var(--fs-shadow-panel);
+}
+.fs-root .fs-pager__btn:hover { border-color: var(--fs-color-accent); }
+.fs-root .fs-pager__btn[disabled] { opacity: 0.3; cursor: not-allowed; }
+
+/* Was: absolute bottom-8 left-1/2 -translate-x-1/2 ... max-h-52 overflow-auto */
+.fs-root .fs-page-menu {
+    position: absolute; bottom: 2rem; left: 50%; transform: translateX(-50%);
+    width: 9rem; max-height: 13rem; overflow: auto; z-index: 20;
+    padding-top: var(--fs-space-1); padding-bottom: var(--fs-space-1);
+    border: 1px solid var(--fs-color-border);
+    border-radius: var(--fs-radius-panel);
+    background-color: var(--fs-color-card);
+    box-shadow: var(--fs-shadow-panel);
+}
+
+/* ---- mobile filter drawer ----------------------------------------------- */
+
+/* Was: flex items-center gap-4 py-4 */
+.fs-root .fs-mobile-bar { display: flex; align-items: center; gap: var(--fs-space-4); padding-top: var(--fs-space-4); padding-bottom: var(--fs-space-4); }
+/* Was: md:hidden */
+@media (min-width: 768px) { .fs-root .fs-mobile-only { display: none; } }
+
+/* Was: bg-[#efeadd] border-2 border-ahy-blue rounded-full px-6 py-2.5 text-sm font-bold text-ahy-blue flex-shrink-0 */
+.fs-root .fs-pill-btn {
+    flex-shrink: 0; padding: 0.625rem var(--fs-space-6);
+    border: 2px solid var(--fs-color-accent);
+    border-radius: var(--fs-radius-control);
+    background-color: var(--fs-color-surface);
+    color: var(--fs-color-accent);
+    font-size: var(--fs-text-sm); line-height: 1.25rem; font-weight: var(--fs-weight-bold);
+}
+
+/* Was: ahy-filter-modal fixed inset-0 bg-white flex flex-col md:hidden overflow-y-auto */
+.fs-root .fs-drawer { position: fixed; inset: 0; z-index: 999999; display: flex; flex-direction: column; overflow-y: auto; background-color: var(--fs-color-card); }
+@media (min-width: 768px) { .fs-root .fs-drawer { display: none; } }
+
+/* Was: sticky top-0 z-10 bg-white flex items-center justify-between px-4 py-4 border-b border-gray-200 */
+.fs-root .fs-drawer__head {
+    position: sticky; top: 0; z-index: 10;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: var(--fs-space-4);
+    border-bottom: 1px solid var(--fs-color-border);
+    background-color: var(--fs-color-card);
+}
+
+/* Was: w-8 h-8 flex items-center justify-center text-xl leading-none text-gray-500 */
+.fs-root .fs-drawer__close { width: 2rem; height: 2rem; display: flex; align-items: center; justify-content: center; font-size: 1.25rem; line-height: 1; color: var(--fs-color-text-muted); }
+
+/* Was: px-4 pt-4 pb-3 border-b-2 border-ahy-blue */
+.fs-root .fs-drawer__section { padding: var(--fs-space-4) var(--fs-space-4) var(--fs-space-3); border-bottom: 2px solid var(--fs-color-accent); }
+
+/* Was: flex-1 px-4 pb-8 */
+.fs-root .fs-drawer__body { flex: 1 1 0%; padding-left: var(--fs-space-4); padding-right: var(--fs-space-4); padding-bottom: var(--fs-space-8); }
+
+/* ---- zero results ------------------------------------------------------- */
+
+/* Was: text-xl sm:text-2xl lg:text-3xl font-bold leading-snug mb-6 sm:mb-8
+   line-height needs restating at each breakpoint. Tailwind's text-* utilities
+   set font-size AND line-height together, and `sm:text-2xl` sits later in the
+   sheet than `leading-snug` — so above 640px its 2rem overrode the 1.375, and
+   above 1024px `lg:text-3xl` overrode it again with 2.25rem. Declaring only the
+   base 1.375 here left the heading a pixel taller at every breakpoint above sm.
+   Caught by the parity check. */
+.fs-root .fs-zero__heading { font-size: 1.25rem; line-height: 1.375; font-weight: var(--fs-weight-bold); margin-bottom: var(--fs-space-6); }
+@media (min-width: 640px) { .fs-root .fs-zero__heading { font-size: var(--fs-text-2xl); line-height: 2rem; margin-bottom: var(--fs-space-8); } }
+@media (min-width: 1024px) { .fs-root .fs-zero__heading { font-size: 1.875rem; line-height: 2.25rem; } }
+
+/* ===========================================================================
+   CARD FOOTER + ADD-TO-CART
+   The button's filled/outline look is an ADMIN setting. The old markup built a
+   Tailwind class string in PHP ($addToCartColorClasses); that becomes a single
+   modifier class driven by the same boolean, so the admin control keeps working.
+   =========================================================================== */
+
+/* Was: flex items-center justify-between */
+.fs-root .fs-card__footer { display: flex; align-items: center; justify-content: space-between; }
+
+/* Was: capitalize !text-gray-900 !font-semibold !text-sm text-wrap */
+.fs-root .fs-card__shipping {
+    text-transform: capitalize;
+    text-wrap: wrap;
+    font-size: var(--fs-text-sm);
+    line-height: 1.25rem;
+    font-weight: var(--fs-weight-semibold);
+    color: var(--fs-color-text-strong);
+}
+
+/* Was: w-full mt-auto pt-3 max-w-[160px] */
+.fs-root .fs-card__cta-wrap { width: 100%; max-width: 160px; margin-top: auto; padding-top: var(--fs-space-3); }
+
+/* Was: capitalize kuBtnDark !flex justify-center items-center gap-2 w-full
+        !text-sm !py-1.5 !px-2.5 font-bold !border-2 !border-ahy-blue
+        (+ the PHP-built colour pair) */
+.fs-root .fs-btn {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: var(--fs-space-2);
+    width: 100%;
+    padding: 0.375rem 0.625rem;
+    border: 2px solid var(--fs-color-accent);
+    font-size: var(--fs-text-sm);
+    line-height: 1.25rem;
+    font-weight: var(--fs-weight-bold);
+    text-transform: capitalize;
+    transition: opacity var(--fs-transition), box-shadow var(--fs-transition);
+}
+
+/* Was: !bg-transparent !text-ahy-blue hover:shadow-[#0d2f47_0px_0px_0px_1px_inset] */
+.fs-root .fs-btn--outline { background-color: transparent; color: var(--fs-color-accent); }
+.fs-root .fs-btn--outline:hover { box-shadow: var(--fs-color-accent) 0 0 0 1px inset; }
+
+/* Was: bg-ahy-blue !text-white hover:opacity-90 */
+.fs-root .fs-btn--filled { background-color: var(--fs-color-accent); color: #fff; }
+.fs-root .fs-btn--filled:hover { opacity: 0.9; }
+
+/* Was: :class="cartLoading[id] ? 'opacity-60 pointer-events-none' : ''" */
+.fs-root .fs-btn.is-loading { opacity: 0.6; pointer-events: none; }
+
+/* Was: w-4 h-4 shrink-0 object-contain — the optional admin-supplied icon */
+.fs-root .fs-btn__icon { width: 1rem; height: 1rem; flex-shrink: 0; object-fit: contain; }
+
+/* ---- filter variants used by the mobile drawer -------------------------- */
+/* filters-mobile.phtml differs from the desktop sidebar in four values only. */
+
+/* Was: border-b border-gray-200 py-4  (desktop uses border-t) */
+.fs-root .fs-filter-group--divider-below { border-top: 0; border-bottom: 1px solid var(--fs-color-border); }
+
+/* Was: space-y-3  (desktop uses space-y-2.5) */
+.fs-root .fs-filter-list--loose > * + * { margin-top: var(--fs-space-3); }
+
+/* Was: w-5 h-5 border border-gray-400 rounded-sm ...  (desktop is w-4 h-4,
+   and the mobile drawer has no hover state because it's touch) */
+.fs-root .fs-checkbox--lg { width: 1.25rem; height: 1.25rem; }
+
+/* Was: text-sm text-gray-700  — same as the desktop label but not flex-1 */
+.fs-root .fs-filter-option__label--auto { flex: 0 1 auto; }
+
+/* Was: text-sm text-gray-400  — no shrink-0 on mobile */
+.fs-root .fs-filter-option__count--auto { flex-shrink: 1; }
+
+/* Was: text-sm font-bold text-ahy-blue mt-1 */
+.fs-root .fs-filter-more--spaced { margin-top: var(--fs-space-1); }
+
+/* ===========================================================================
+   PRODUCT CARD — mobile (horizontal layout)
+   product-card-mobile.phtml is a different composition, not a restyle of the
+   desktop card: image left, details right. Shares the price/badge pieces.
+   =========================================================================== */
+
+/* Was: relative flex bg-white ahy-mobile-card
+   .ahy-mobile-card was a full-bleed trick living in search-form.phtml's <style>;
+   it moves here so the card owns its own layout. */
+.fs-root .fs-card--mobile {
+    position: relative;
+    display: flex;
+    flex-direction: row;
+    background-color: var(--fs-color-card);
+    margin-left: 50%;
+    width: 100vw;
+    transform: translateX(-50%);
+}
+@media (min-width: 640px) {
+    .fs-root .fs-card--mobile { margin-left: auto; width: 100%; transform: none; max-width: 640px; }
+}
+
+/* Was: relative shrink-0 */
+.fs-root .fs-card__media-wrap { position: relative; flex-shrink: 0; }
+
+/* Was: block h-full */
+.fs-root .fs-card__media--fill { display: block; height: 100%; }
+
+/* Was: w-full h-full object-contain p-3 */
+.fs-root .fs-card__image--fill {
+    width: 100%; height: 100%; max-width: none;
+    padding: var(--fs-space-3);
+    object-fit: contain; display: block; margin: 0;
+}
+
+/* Was: flex-1 min-w-0 flex flex-col px-3 py-4 */
+.fs-root .fs-card__body--mobile {
+    display: flex; flex-direction: column; flex: 1 1 0%; min-width: 0;
+    padding: var(--fs-space-4) var(--fs-space-3);
+}
+
+/* Was: font-bold text-ahy-blue leading-snug line-clamp-3 */
+.fs-root .fs-card__title--mobile {
+    display: -webkit-box; -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden;
+    height: auto; margin-top: 0;
+    font-size: inherit; line-height: 1.375;
+    font-weight: var(--fs-weight-bold);
+    color: var(--fs-color-accent);
+}
+
+/* Was: text-xl font-extrabold text-ahy-blue */
+.fs-root .fs-card__price-current--sm { font-size: 1.25rem; line-height: 1.75rem; }
+
+/* Was: text-ahy-red text-sm font-bold */
+.fs-root .fs-card__price-from--plain { text-transform: none; }
+
+/* Was: rounded ... px-2 py-0.5 ... (desktop uses py-1) */
+.fs-root .fs-card__stock-badge--tight { padding-top: 0.125rem; padding-bottom: 0.125rem; }
+
+/* Was: text-sm text-gray-900 font-semibold mt-2 */
+.fs-root .fs-card__shipping--mobile { text-transform: none; margin-top: var(--fs-space-2); }
+
+/* Was: mt-2 / flex items-center gap-2 mt-3 */
+.fs-root .fs-card__price-block { margin-top: var(--fs-space-2); }
+.fs-root .fs-card__actions { display: flex; align-items: center; gap: var(--fs-space-2); margin-top: var(--fs-space-3); }
+
+/* Was: px-5 py-2 (the mobile add-to-cart is wider/shorter than the desktop one) */
+.fs-root .fs-btn--compact { width: auto; padding: var(--fs-space-2) 1.25rem; }
+
+/* Was: w-9 h-9 shrink-0 rounded-full border border-gray-300 bg-white flex
+        items-center justify-center text-ahy-blue ... — same chrome as the
+        desktop wishlist but in flow rather than pinned to the corner. */
+/* No shadow-sm / transition on the mobile variant — the original class list
+   omits both, so carrying the desktop shadow over would be a visible change. */
+.fs-root .fs-card__wishlist--inline { position: static; flex-shrink: 0; box-shadow: none; transition: none; }
+
+/* ===========================================================================
+   ZERO RESULTS — popular products carousel + popular searches
+   Moved verbatim from search-form.phtml's inline <style> and renamed to the
+   fs- namespace, so these classes can no longer collide with a host theme's.
+   The drag-scroll JS in search-form.phtml queries '.fs-pop-card'.
+   =========================================================================== */
+
+.fs-root .fs-pop-wrap { position: relative; }
+
+.fs-root .fs-pop-row {
+    display: flex;
+    gap: 12px;
+    overflow-x: auto;
+    scroll-snap-type: none;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding-bottom: 4px;
+    cursor: grab;
+    user-select: none;
+}
+.fs-root .fs-pop-row.is-dragging { cursor: grabbing; }
+.fs-root .fs-pop-row::-webkit-scrollbar { display: none; }
+
+.fs-root .fs-pop-card { flex-shrink: 0; width: calc(78% - 6px); scroll-snap-align: start; text-decoration-line: none; transition: box-shadow 200ms cubic-bezier(0.4,0,0.2,1); }
+.fs-root .fs-pop-card:hover { box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1); }
+
+.fs-root .fs-pop-nav {
+    position: absolute; top: 50%; transform: translateY(-50%);
+    width: 52px; height: 52px; border-radius: 50%;
+    background: rgba(100,100,100,0.75); border: none;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; z-index: 10;
+}
+.fs-root .fs-pop-nav--prev { left: 12px; }
+.fs-root .fs-pop-nav--next { right: 12px; }
+
+.fs-root .fs-pop-searches { display: flex; flex-wrap: wrap; gap: 10px; }
+
+@media (min-width: 640px) {
+    .fs-root .fs-pop-row { scroll-snap-type: x mandatory; }
+    .fs-root .fs-pop-card { width: calc(48% - 6px); }
+}
+@media (min-width: 1024px) {
+    .fs-root .fs-pop-card { width: calc(25% - 9px); }
+}
+
+/* Small text pieces inside the popular-product cards.
+   Was: object-contain / line-clamp-2 / text-xs text-gray-400 line-through /
+        text-sm font-bold text-gray-900 / text-sm text-gray-800 / font-normal text-xs */
+.fs-root .fs-pop-card__img { object-fit: contain; }
+.fs-root .fs-pop-card__name { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
+.fs-root .fs-pop-card__was { font-size: var(--fs-text-xs); line-height: 1rem; color: var(--fs-color-text-subtle); text-decoration-line: line-through; }
+.fs-root .fs-pop-card__now { font-size: var(--fs-text-sm); line-height: 1.25rem; font-weight: var(--fs-weight-bold); color: var(--fs-color-text-strong); }
+.fs-root .fs-pop-card__from { font-size: var(--fs-text-sm); line-height: 1.25rem; color: var(--fs-color-text-strongish); }
+.fs-root .fs-pop-card__from-label { font-size: var(--fs-text-xs); line-height: 1rem; font-weight: var(--fs-weight-normal); }
+.fs-root .fs-pop-card__from-value { font-weight: var(--fs-weight-bold); }
+
+/* ===========================================================================
+   HEADER MINI SEARCH FORM
+   The box in the site header. Lives outside the modal, so it carries its own
+   .fs-root — the isolation boundary is per-subtree, not per-page.
+   =========================================================================== */
+
+/* Was: container px-0 py-2 mx-auto text-black */
+.fs-root .fs-minisearch {
+    width: 100%;
+    margin-left: auto;
+    margin-right: auto;
+    padding-top: var(--fs-space-2);
+    padding-bottom: var(--fs-space-2);
+    color: #000;
+}
+
+/* Was: form minisearch relative */
+.fs-root .fs-minisearch__form { position: relative; }
+
+/* Was: hidden — the visually-hidden <label> for the input */
+.fs-root .fs-visually-hidden { display: none; }
+
+/* Was: relative flex items-center */
+.fs-root .fs-minisearch__field { position: relative; display: flex; align-items: center; }
+
+/* Was: w-full p-2 py-3 leading-normal placeholder-black transition appearance-none
+        text-grey-800 focus:outline-none focus:border-transparent
+        focus:ring-transparent pl-6 rounded-full border-transparent
+   NOTE: `text-grey-800` is a typo in the original (Tailwind's scale is "gray",
+   not "grey"), so it never applied. Not carried forward — colour inherits. */
+.fs-root .fs-minisearch__input {
+    width: 100%;
+    padding: var(--fs-space-2) var(--fs-space-2) var(--fs-space-2) var(--fs-space-6);
+    padding-top: var(--fs-space-3);
+    padding-bottom: var(--fs-space-3);
+    line-height: 1.5;
+    appearance: none;
+    -webkit-appearance: none;
+    border: 1px solid transparent;
+    border-radius: var(--fs-radius-control);
+    background-color: var(--fs-color-card);
+    transition: border-color var(--fs-transition), box-shadow var(--fs-transition);
+}
+.fs-root .fs-minisearch__input::placeholder { color: #000; }
+.fs-root .fs-minisearch__input:focus { outline: none; border-color: transparent; box-shadow: none; }
+
+/* ===========================================================================
+   MODAL TITLE + STATE MODIFIERS
+   =========================================================================== */
+
+/* Was: text-ahy-blue page-title !font-extrabold title-font uppercase text-3xl md:text-6xl
+   `page-title` and `title-font` are theme classes with no definition in the
+   compiled stylesheet — verified zero occurrences — so they are not carried over. */
+.fs-root .fs-modal__title {
+    font-size: 1.875rem;
+    line-height: 2.25rem;
+    font-weight: var(--fs-weight-extrabold);
+    text-transform: uppercase;
+    color: var(--fs-color-accent);
+}
+@media (min-width: 768px) {
+    .fs-root .fs-modal__title { font-size: 3.75rem; line-height: 1; }
+}
+
+/* Was: uppercase tracking-wide on the mobile filter pill */
+.fs-root .fs-pill-btn { text-transform: uppercase; letter-spacing: 0.025em; }
+
+/* Was: :class="... ? 'bg-ahy-blue !text-white' : ''" */
+.fs-root .fs-pill-btn.is-active { background-color: var(--fs-color-accent); color: #fff; }
+
+/* Was: :class="open ? 'rotate-180' : ''" on every dropdown chevron */
+.fs-root .fs-chevron { width: 1rem; height: 1rem; transition: transform var(--fs-transition); }
+.fs-root .fs-chevron--sm { width: 0.75rem; height: 0.75rem; }
+.fs-root .fs-chevron--inset { margin-left: var(--fs-space-1); }
+.fs-root .fs-chevron.is-open { transform: rotate(180deg); }
+
+/* Was: :class="sort === '...' ? 'font-bold text-ahy-blue' : ''" */
+.fs-root .fs-menu__item.is-active { font-weight: var(--fs-weight-bold); color: var(--fs-color-accent); }
+
+/* Was: :class="page <= 1 ? 'opacity-30 cursor-not-allowed' : 'hover:border-ahy-blue'" */
+.fs-root .fs-pager__btn.is-disabled { opacity: 0.3; cursor: not-allowed; }
+.fs-root .fs-pager__btn.is-disabled:hover { border-color: var(--fs-color-border); }
+
+/* Was: w-36 on the page-number dropdown (the sort menu is w-52) */
+.fs-root .fs-page-menu { width: 9rem; }
+
+/* ===========================================================================
+   SMALL PIECES — named during the search-form conversion
+   =========================================================================== */
+
+/* Was: text-sm font-semibold text-ahy-blue  (sidebar "(n Items)") */
+.fs-root .fs-sidebar__count-text { font-size: var(--fs-text-sm); line-height: 1.25rem; font-weight: var(--fs-weight-semibold); color: var(--fs-color-accent); }
+
+/* Was: space-y-0 — an explicit "no gap between filter groups", which matters
+   because the groups carry their own top borders. */
+.fs-root .fs-filter-stack > * + * { margin-top: 0; }
+
+/* Was: hidden */
+.fs-root .fs-hidden { display: none; }
+
+/* Was: flex-wrap on the mobile sort row (the desktop one does not wrap) */
+.fs-root .fs-sort--wrap { flex-wrap: wrap; }
+
+/* Was: text-gray-600 — the "Sort by:" label */
+.fs-root .fs-sort__label { color: var(--fs-color-text-muted-strong); }
+
+/* Was: ml-0.5 instead of ml-1 on the mobile sort trigger */
+.fs-root .fs-sort__btn--tight { margin-left: 0.125rem; }
+
+/* Was: font-bold text-ahy-blue flex items-center gap-1 — the page-number
+   trigger in the pager, which has no left margin and sets its own colour. */
+.fs-root .fs-sort__btn--plain { margin-left: 0; color: var(--fs-color-accent); }
+
+/* Was: font-semibold text-ahy-blue — drawer section heading */
+.fs-root .fs-drawer__section-title { font-weight: var(--fs-weight-semibold); color: var(--fs-color-accent); }
+
+/* Was: text-ahy-blue — the emphasised term inside a spell-correction notice */
+.fs-root .fs-notice__em { color: var(--fs-color-accent); }
+
+/* Was: relative — positioning context for the page-number dropdown */
+.fs-root .fs-pager__pages { position: relative; }
+
+/* ===========================================================================
+   CATEGORY PLP  (category/*.phtml)
+   Shares the card, filter and menu components above. Only what differs from
+   the header surface is defined here.
+
+   NOTE ON !important: the originals used it throughout to win cascade fights
+   with the Everest theme. Inside .fs-root the reset removes that fight, so the
+   values are carried over WITHOUT !important.
+   =========================================================================== */
+
+/* Was: ahy-filter-layout flex px-4 md:pr-0 lg:pl-6 pt-0 pb-12 */
+.fs-root .fs-plp-layout { display: flex; padding: 0 var(--fs-space-4) 3rem; }
+@media (min-width: 768px) { .fs-root .fs-plp-layout { padding-right: 0; gap: 1.25rem; } }
+@media (min-width: 1024px) { .fs-root .fs-plp-layout { padding-left: var(--fs-space-6); gap: 3rem; } }
+
+/* Was: ahy-filter-sidebar hidden md:block  (+ width rules per breakpoint) */
+.fs-root .fs-plp-sidebar { display: none; flex-shrink: 0; }
+@media (min-width: 768px) { .fs-root .fs-plp-sidebar { display: block; width: 200px; padding-right: 12px; } }
+@media (min-width: 1024px) { .fs-root .fs-plp-sidebar { width: 285px; padding-right: 24px; } }
+@media (min-width: 768px) { .fs-root .fs-plp-sidebar label { gap: 0.375rem; } }
+@media (min-width: 1024px) { .fs-root .fs-plp-sidebar label { gap: 0.625rem; } }
+
+/* Was: flex-1 min-w-0 */
+.fs-root .fs-plp-main { flex: 1 1 0%; min-width: 0; }
+
+/* Was: ahy-product-grid grid grid-cols-2 xl:grid-cols-3  — the category grid is
+   always a grid (the header one is hidden below md), so it needs its own class. */
+.fs-root .fs-plp-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--fs-grid-gap); }
+@media (min-width: 1280px) { .fs-root .fs-plp-grid { grid-template-columns: repeat(var(--fs-grid-columns), minmax(0, 1fr)); } }
+
+/* Was: ahy-filter-title font-bold text-ahy-blue */
+.fs-root .fs-plp-filter-title { font-size: var(--fs-text-lg); line-height: 1.75rem; font-weight: var(--fs-weight-semibold); color: var(--fs-color-accent); }
+
+/* Was: border-t-2 border-white py-4 — category separates filter groups with a
+   white rule rather than the header's grey one. */
+.fs-root .fs-plp-filter-group { border-top: 2px solid #fff; padding-top: var(--fs-space-4); padding-bottom: var(--fs-space-4); }
+
+/* Was: -mx-2 flex items-center gap-2.5 px-2 py-2 rounded-full cursor-pointer
+        hover:bg-white transition-colors (+ `group` on the desktop variant) */
+.fs-root .fs-plp-filter-option {
+    display: flex; align-items: center; gap: 0.625rem;
+    margin-left: -0.5rem; margin-right: -0.5rem;
+    padding: var(--fs-space-2);
+    border-radius: var(--fs-radius-control);
+    cursor: pointer;
+    transition: background-color var(--fs-transition);
+}
+.fs-root .fs-plp-filter-option:hover { background-color: var(--fs-color-card); }
+.fs-root .fs-plp-filter-option:hover .fs-checkbox { border-color: var(--fs-color-accent); }
+
+/* Selected filter row. Was Tailwind `bg-white` / `font-semibold` applied through
+   an Alpine :class expression in {search,category}/filters-desktop.phtml; those
+   utilities no longer exist, so the selected state had no visual at all. */
+.fs-root .fs-plp-filter-option.is-active { background-color: var(--fs-color-card); }
+.fs-root .fs-plp-filter-label.is-active { font-weight: var(--fs-weight-semibold); }
+
+/* Was: ahy-filter-option flex-1 leading-tight text-gray-700 */
+.fs-root .fs-plp-filter-label {
+    flex: 1 1 0%;
+    min-width: 0;
+    font-size: 13px;
+    line-height: 1.25;
+    color: var(--fs-color-text);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* Was: ahy-filter-count shrink-0 text-ahy-blue text-sm */
+.fs-root .fs-plp-filter-count { flex-shrink: 0; font-size: var(--fs-text-sm); line-height: 1.25rem; color: var(--fs-color-accent); }
+@media (min-width: 1024px) { .fs-root .fs-plp-filter-count { margin-left: var(--fs-space-6); } }
+
+/* Was: ahy-filter-chip bg-white border border-gray-300 inline-flex items-center
+        gap-1.5 px-3 py-... cursor-pointer  (the active-filter pills) */
+.fs-root .fs-plp-chip {
+    display: inline-flex; align-items: center; gap: 0.375rem;
+    padding: var(--fs-space-1) var(--fs-space-3);
+    border: 1px solid var(--fs-color-border-strong-soft);
+    border-radius: var(--fs-radius-control);
+    background-color: var(--fs-color-card);
+    color: var(--fs-color-accent);
+    font-size: var(--fs-text-xs); line-height: 1rem;
+    cursor: pointer;
+}
+.fs-root .fs-plp-chip:hover { background-color: rgb(237, 234, 234); }
+
+/* Was: border-b-4 border-ahy-blue pb-3 mb-6 / mb-4 — the "(n Items)" rule */
+.fs-root .fs-plp-count { border-bottom: 4px solid var(--fs-color-accent); padding-bottom: var(--fs-space-3); margin-bottom: var(--fs-space-6); }
+.fs-root .fs-plp-count--tight { margin-bottom: var(--fs-space-4); }
+
+/* Was: bg-gray-200 h-px mt-2 — hairline between filter groups */
+.fs-root .fs-plp-rule { height: 1px; background-color: var(--fs-color-border); }
+.fs-root .fs-plp-rule--spaced { margin-top: var(--fs-space-2); }
+
+/* ---- category card differences ----------------------------------------- */
+
+/* Was: flex flex-1 flex-col px-6 pb-4  (header card uses px-4) */
+.fs-root .fs-card__body--roomy { padding-left: var(--fs-space-6); padding-right: var(--fs-space-6); }
+
+/* Was: line-clamp-1 mt-1 text-xs text-gray-500 */
+.fs-root .fs-card__seller--oneline { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 1; line-clamp: 1; overflow: hidden; }
+
+/* Was: font-bold leading-snug line-clamp-2 text-ahy-blue  (mobile category title) */
+.fs-root .fs-card__title--snug { height: auto; margin-top: 0; font-size: inherit; line-height: 1.375; font-weight: var(--fs-weight-bold); }
+
+/* Was: ahy-plp-btn-wrap w-full mt-auto pt-3 max-w-[160px] */
+.fs-root .fs-card__cta-wrap--end { display: flex; justify-content: flex-end; }
+
+/* Was: ahy-plp-cart-btn — the compact category add-to-cart */
+.fs-root .fs-btn--mini { width: 90px; padding: var(--fs-space-1) var(--fs-space-3); font-size: var(--fs-text-xs); }
+
+/* Was: animate-spin w-3.5 h-3.5 shrink-0 / w-3.5 h-3.5 shrink-0 object-contain */
+.fs-root .fs-icon--xs { width: 0.875rem; height: 0.875rem; }
+
+/* ---- category mobile filter drawer ------------------------------------- */
+
+/* Was: bg-ahy-bg border-b border-gray-300 md:hidden */
+.fs-root .fs-plp-mobilebar { background-color: var(--fs-color-surface); border-bottom: 1px solid var(--fs-color-border-strong-soft); }
+
+/* Was: ahy-filters-menu flex gap-3 justify-between md:items-center px-4 py-3 relative z-10 */
+.fs-root .fs-plp-mobilebar__row {
+    position: relative; z-index: 10;
+    display: flex; justify-content: space-between; gap: var(--fs-space-3);
+    padding: var(--fs-space-3) var(--fs-space-4);
+    width: 100vw; margin-left: 50%; transform: translateX(-50%);
+}
+@media (min-width: 768px) { .fs-root .fs-plp-mobilebar__row { align-items: center; } }
+
+/* Was: ahy-filters shrink-0 border-2 border-ahy-blue text-ahy-blue uppercase
+        text-xs tracking-widest font-bold py-3 px-4 rounded-full transition
+        duration-300 ease-in-out */
+.fs-root .fs-plp-filter-btn {
+    flex-shrink: 0; flex-grow: 1; max-width: 300px;
+    padding: var(--fs-space-3) var(--fs-space-4);
+    border: 2px solid var(--fs-color-accent);
+    border-radius: var(--fs-radius-control);
+    font-size: var(--fs-text-xs);
+    line-height: 1rem;
+    font-weight: var(--fs-weight-bold);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--fs-color-accent);
+    transition: background-color 300ms cubic-bezier(0.4, 0, 0.2, 1), color 300ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Was: ahy-sort flex gap-1 items-center relative text-ahy-blue text-sm */
+.fs-root .fs-plp-sort { position: relative; display: flex; align-items: center; gap: var(--fs-space-1); font-size: var(--fs-text-sm); color: var(--fs-color-accent); }
+
+/* Was: absolute right-0 top-full ... w-52 z-50 — category anchors to top-full,
+   the header modal to top-8. */
+.fs-root .fs-menu--below { top: 100%; }
+
+/* ---- slide-over drawer (category uses a right-hand panel, not fullscreen) - */
+
+/* Was: fixed inset-0 overflow-hidden z-[500] */
+.fs-root .fs-slideover { position: fixed; inset: 0; overflow: hidden; z-index: 500; }
+/* Was: absolute inset-0 bg-black/50 */
+.fs-root .fs-slideover__scrim { position: absolute; inset: 0; background-color: rgb(0 0 0 / 0.5); }
+/* Was: fixed inset-y-0 right-0 flex max-w-full pl-10 */
+.fs-root .fs-slideover__rail { position: fixed; top: 0; bottom: 0; right: 0; display: flex; max-width: 100%; padding-left: 2.5rem; }
+/* Was: relative w-screen max-w-[769px] bg-white shadow-xl flex flex-col h-full overflow-y-auto */
+.fs-root .fs-slideover__panel {
+    position: relative; width: 100vw; max-width: 769px; height: 100%;
+    display: flex; flex-direction: column; overflow-y: auto;
+    background-color: var(--fs-color-card);
+    box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+}
+/* Was: sticky top-0 z-10 bg-white px-4 pt-4 */
+.fs-root .fs-slideover__head { position: sticky; top: 0; z-index: 10; background-color: var(--fs-color-card); padding: var(--fs-space-4) var(--fs-space-4) 0; }
+
+/* ---- misc --------------------------------------------------------------- */
+
+/* Was: px-6 py-12 text-center text-gray-500 — the zero-results panel */
+.fs-root .fs-plp-empty { padding: 3rem var(--fs-space-6); text-align: center; color: var(--fs-color-text-muted); }
+
+/* Was: border-t border-gray-200 hidden md:block py-1.5 text-ahy-blue text-center text-xs font-semibold */
+.fs-root .fs-plp-footnote { display: none; }
+@media (min-width: 768px) {
+    .fs-root .fs-plp-footnote {
+        display: block; text-align: center;
+        border-top: 1px solid var(--fs-color-border);
+        padding-top: 0.375rem; padding-bottom: 0.375rem;
+        font-size: var(--fs-text-xs); font-weight: var(--fs-weight-semibold);
+        color: var(--fs-color-accent);
+    }
+}
+
+/* Responsive show/hide helpers the category templates use directly. */
+.fs-root .fs-md-only { display: none; }
+@media (min-width: 768px) and (max-width: 1023px) { .fs-root .fs-md-only { display: block; } }
+.fs-root .fs-lg-up { display: none; }
+@media (min-width: 1024px) { .fs-root .fs-lg-up { display: block; } }
+
+
+/* ---- small pieces named during the category conversion ------------------ */
+
+/* Was: text-xs font-semibold text-ahy-blue — the sidebar "Clear all" button */
+.fs-root .fs-clear-all-btn { font-size: var(--fs-text-xs); line-height: 1rem; font-weight: var(--fs-weight-semibold); color: var(--fs-color-accent); }
+
+/* Was: w-full flex justify-center — wrapper that centres the inline loader */
+.fs-root .fs-loader-wrap { width: 100%; display: flex; justify-content: center; }
+
+/* Was: mb-4 — spacing under the active-filter chip row */
+.fs-root .fs-plp-chips-wrap { margin-bottom: var(--fs-space-4); }
+
+/* Was: flex justify-end / flex items-center justify-between pb-4 / flex-1 px-4 py-2 */
+.fs-root .fs-slideover__close-row { display: flex; justify-content: flex-end; }
+.fs-root .fs-slideover__title-row { display: flex; align-items: center; justify-content: space-between; padding-bottom: var(--fs-space-4); }
+.fs-root .fs-slideover__body { flex: 1 1 0%; padding: var(--fs-space-2) var(--fs-space-4); }
+
+/* Was: line-clamp-1 — the sort label truncates on narrow mobile */
+.fs-root .fs-truncate { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 1; line-clamp: 1; overflow: hidden; }
+
+/* Was: w-full */
+.fs-root .fs-w-full { width: 100%; }
+
+/* ===========================================================================
+   SEARCH RESULTS  (search/*.phtml)
+   Reuses almost everything above — 110 of its 135 signatures were already
+   solved by the header and category passes. Only the differences are here.
+   =========================================================================== */
+
+/* Was: ahy-filter-layout flex px-4 md:pr-0 lg:pl-6 pt-0 pb-12 relative
+   (category's version is identical minus `relative`, which this one needs so
+   the scoped loader overlay can position against it) */
+.fs-root .fs-plp-layout--anchored { position: relative; }
+
+/* Was: px-4 pb-3 mb-4 border-b-2 border-ahy-blue */
+.fs-root .fs-plp-count--inset { padding-left: var(--fs-space-4); padding-right: var(--fs-space-4); border-bottom-width: 2px; margin-bottom: var(--fs-space-4); }
+
+/* Was: ahy-filter-chips flex flex-wrap */
+.fs-root .fs-chips--tight { display: flex; flex-wrap: wrap; }
+
+/* Was: font-extrabold text-ahy-blue text-sm */
+.fs-root .fs-plp-subtitle { font-size: var(--fs-text-sm); line-height: 1.25rem; font-weight: var(--fs-weight-extrabold); color: var(--fs-color-accent); }
+
+/* Was: cursor-pointer font-semibold text-ahy-blue underline */
+.fs-root .fs-link--underlined { text-decoration-line: underline; }
+
+/* Was: ml-1 / ml-2 shrink-0 / mt-1 / mt-6 ... — small spacing helpers the
+   search templates use directly on one-off elements. */
+.fs-root .fs-ml-1 { margin-left: var(--fs-space-1); }
+.fs-root .fs-ml-2 { margin-left: var(--fs-space-2); flex-shrink: 0; }
+.fs-root .fs-mt-1 { margin-top: var(--fs-space-1); }
+
+/* Was: grid grid-cols-2 xl:grid-cols-3 — the search grid, always a grid */
+.fs-root .fs-search-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--fs-grid-gap); }
+@media (min-width: 1280px) { .fs-root .fs-search-grid { grid-template-columns: repeat(var(--fs-grid-columns), minmax(0, 1fr)); } }
+
+/* Was: fixed inset-y-0 right-0 flex max-w-full — the search slide-over rail has
+   no pl-10 gutter, unlike category's. */
+.fs-root .fs-slideover__rail--flush { padding-left: 0; }
+
+/* ---- add-to-cart toast -------------------------------------------------- */
+
+/* Was: bg-green-500 flex gap-2 items-center justify-between mb-4 px-4 py-3 rounded-md text-white */
+.fs-root .fs-toast {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: var(--fs-space-2);
+    margin-bottom: var(--fs-space-4);
+    padding: var(--fs-space-3) var(--fs-space-4);
+    border-radius: 0.375rem;
+    background-color: var(--fs-color-success);
+    color: #fff;
+}
+.fs-root .fs-toast__close { color: #fff; }
+
+/* ---- zero-results panel ------------------------------------------------- */
+
+/* Was: bg-white border border-gray-100 mx-auto px-6 py-10 rounded-xl shadow-sm */
+.fs-root .fs-noresults {
+    margin-left: auto; margin-right: auto;
+    padding: 2.5rem var(--fs-space-6);
+    border: 1px solid var(--fs-color-border-soft);
+    border-radius: var(--fs-radius-panel);
+    background-color: var(--fs-color-card);
+    box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+}
+
+/* Was: mb-6 text-base text-center text-gray-600 */
+.fs-root .fs-noresults__lead { margin-bottom: var(--fs-space-6); text-align: center; font-size: var(--fs-text-base); line-height: 1.5rem; color: var(--fs-color-text-muted-strong); }
+
+/* Was: font-semibold not-italic */
+.fs-root .fs-noresults__term { font-style: normal; font-weight: var(--fs-weight-semibold); }
+
+/* Was: font-extrabold mb-5 text-ahy-blue text-center text-sm tracking-widest uppercase */
+.fs-root .fs-noresults__heading {
+    margin-bottom: 1.25rem; text-align: center;
+    font-size: var(--fs-text-sm); line-height: 1.25rem;
+    font-weight: var(--fs-weight-extrabold);
+    text-transform: uppercase; letter-spacing: 0.1em;
+    color: var(--fs-color-accent);
+}
+
+/* Was: gap-0.5 grid grid-cols-2 lg:grid-cols-4 */
+.fs-root .fs-noresults__grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.125rem; }
+@media (min-width: 1024px) { .fs-root .fs-noresults__grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+
+/* Was: bg-white flex flex-col group hover:shadow-md p-3 transition
+   `group` only existed for group-hover:underline on the title below — that is
+   a plain descendant hover here, so the group class disappears. */
+.fs-root .fs-suggest-card {
+    display: flex; flex-direction: column;
+    padding: var(--fs-space-3);
+    background-color: var(--fs-color-card);
+    transition: box-shadow var(--fs-transition);
+}
+.fs-root .fs-suggest-card:hover { box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1); }
+
+/* Was: mb-3 object-contain w-full */
+.fs-root .fs-suggest-card__img { width: 100%; margin-bottom: var(--fs-space-3); object-fit: contain; }
+
+/* Was: font-bold group-hover:underline leading-snug line-clamp-2 text-ahy-blue text-sm */
+.fs-root .fs-suggest-card__title {
+    display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden;
+    font-size: var(--fs-text-sm); line-height: 1.375;
+    font-weight: var(--fs-weight-bold);
+    color: var(--fs-color-accent);
+}
+.fs-root .fs-suggest-card:hover .fs-suggest-card__title { text-decoration-line: underline; }
+
+/* Was: mt-6 text-center text-gray-600 text-sm */
+.fs-root .fs-noresults__footer { margin-top: var(--fs-space-6); text-align: center; font-size: var(--fs-text-sm); line-height: 1.25rem; color: var(--fs-color-text-muted-strong); }
+
+/* ===========================================================================
+   CONFIGURABLE-PRODUCT OPTIONS MODAL  (modal/config-modal.phtml)
+   Opens from the "Options" button on any configurable product card.
+   =========================================================================== */
+
+/* Was: absolute inset-0 transition-opacity bg-gray-500 bg-opacity-75 */
+.fs-root .fs-cfg__scrim { position: absolute; inset: 0; background-color: rgb(107 114 128 / 0.75); transition: opacity var(--fs-transition); }
+
+/* Was: flex items-start justify-between px-5 pt-5 pb-4 shrink-0 */
+.fs-root .fs-cfg__head { display: flex; align-items: flex-start; justify-content: space-between; flex-shrink: 0; padding: 1.25rem 1.25rem var(--fs-space-4); }
+/* Was: pr-4 flex-1 */
+.fs-root .fs-cfg__head-text { flex: 1 1 0%; padding-right: var(--fs-space-4); }
+/* Was: font-bold text-gray-900 text-lg leading-snug */
+.fs-root .fs-cfg__title { font-size: var(--fs-text-lg); line-height: 1.375; font-weight: var(--fs-weight-bold); color: var(--fs-color-text-strong); }
+/* Was: text-sm text-gray-500 mt-0.5 */
+.fs-root .fs-cfg__subtitle { margin-top: 0.125rem; font-size: var(--fs-text-sm); line-height: 1.25rem; color: var(--fs-color-text-muted); }
+/* Was: shrink-0 w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-700 text-xl mt-0.5 */
+.fs-root .fs-cfg__close { flex-shrink: 0; width: 2rem; height: 2rem; margin-top: 0.125rem; display: flex; align-items: center; justify-content: center; font-size: 1.25rem; color: var(--fs-color-text-subtle); }
+.fs-root .fs-cfg__close:hover { color: var(--fs-color-text); }
+
+/* Was: flex gap-3 px-5 pb-4 shrink-0 — the gallery row */
+.fs-root .fs-cfg__gallery { display: flex; gap: var(--fs-space-3); flex-shrink: 0; padding: 0 1.25rem var(--fs-space-4); }
+/* Was: ahy-thumb-strip flex flex-col gap-2 w-16 shrink-0 overflow-y-auto */
+.fs-root .fs-cfg__thumbs { display: flex; flex-direction: column; gap: var(--fs-space-2); width: 4rem; flex-shrink: 0; overflow-y: auto; scrollbar-width: none; -ms-overflow-style: none; }
+.fs-root .fs-cfg__thumbs::-webkit-scrollbar { display: none; }
+/* Was: relative w-16 h-16 rounded-lg border-2 p-1 shrink-0 flex items-center justify-center overflow-hidden */
+.fs-root .fs-cfg__thumb { position: relative; width: 4rem; height: 4rem; flex-shrink: 0; display: flex; align-items: center; justify-content: center; overflow: hidden; padding: var(--fs-space-1); border: 2px solid transparent; border-radius: 0.5rem; }
+.fs-root .fs-cfg__thumb.is-active { border-color: var(--fs-color-accent); }
+/* Was: flex-1 bg-gray-50 rounded-xl flex items-center justify-center relative */
+.fs-root .fs-cfg__stage { position: relative; flex: 1 1 0%; display: flex; align-items: center; justify-content: center; border-radius: var(--fs-radius-panel); background-color: var(--fs-color-menu-hover); }
+/* Was: max-h-72 w-full object-contain p-4 / w-full h-full object-contain */
+.fs-root .fs-cfg__image { width: 100%; max-height: 18rem; padding: var(--fs-space-4); object-fit: contain; }
+.fs-root .fs-cfg__thumb-img { width: 100%; height: 100%; object-fit: contain; }
+
+/* Was: px-5 pb-2 shrink-0 / px-5 pb-4 flex-1 space-y-5 */
+.fs-root .fs-cfg__price-row { flex-shrink: 0; padding: 0 1.25rem var(--fs-space-2); }
+.fs-root .fs-cfg__body { flex: 1 1 0%; padding: 0 1.25rem var(--fs-space-4); }
+.fs-root .fs-cfg__body > * + * { margin-top: 1.25rem; }
+
+/* Was: text-4xl font-extrabold text-ahy-blue */
+.fs-root .fs-cfg__price { font-size: 2.25rem; line-height: 2.5rem; font-weight: var(--fs-weight-extrabold); color: var(--fs-color-accent); }
+/* Was: text-lg text-gray-400 line-through */
+.fs-root .fs-cfg__price-was { font-size: var(--fs-text-lg); line-height: 1.75rem; color: var(--fs-color-text-subtle); text-decoration-line: line-through; }
+/* Was: text-ahy-red font-bold text-sm */
+.fs-root .fs-cfg__save { font-size: var(--fs-text-sm); line-height: 1.25rem; font-weight: var(--fs-weight-bold); color: var(--fs-color-sale); }
+/* Was: inline-block mt-2 text-ahy-blue font-semibold text-sm underline */
+.fs-root .fs-cfg__link { display: inline-block; margin-top: var(--fs-space-2); font-size: var(--fs-text-sm); font-weight: var(--fs-weight-semibold); color: var(--fs-color-accent); text-decoration-line: underline; }
+
+/* Was: text-sm font-semibold text-gray-700 mb-2 */
+.fs-root .fs-cfg__label { margin-bottom: var(--fs-space-2); font-size: var(--fs-text-sm); line-height: 1.25rem; font-weight: var(--fs-weight-semibold); color: var(--fs-color-text); }
+/* Was: px-4 py-2 text-sm border-2 rounded-lg font-medium transition — a swatch */
+.fs-root .fs-cfg__swatch {
+    padding: var(--fs-space-2) var(--fs-space-4);
+    border: 2px solid var(--fs-color-border-strong-soft);
+    border-radius: 0.5rem;
+    font-size: var(--fs-text-sm); line-height: 1.25rem; font-weight: 500;
+    cursor: pointer;
+    transition: border-color var(--fs-transition), background-color var(--fs-transition), color var(--fs-transition);
+}
+.fs-root .fs-cfg__swatch.is-selected { border-color: var(--fs-color-accent); background-color: var(--fs-color-accent); color: #fff; }
+.fs-root .fs-cfg__swatch[disabled] { opacity: 0.4; cursor: not-allowed; }
+
+/* Was: px-5 pb-6 pt-4 shrink-0 bg-white sticky bottom-0 */
+.fs-root .fs-cfg__footer { position: sticky; bottom: 0; flex-shrink: 0; padding: var(--fs-space-4) 1.25rem var(--fs-space-6); background-color: var(--fs-color-card); }
+/* Was: w-full text-white rounded-full py-4 text-lg font-bold flex items-center justify-center gap-3 transition */
+.fs-root .fs-cfg__submit {
+    width: 100%; display: flex; align-items: center; justify-content: center; gap: var(--fs-space-3);
+    padding-top: var(--fs-space-4); padding-bottom: var(--fs-space-4);
+    border-radius: var(--fs-radius-control);
+    background-color: var(--fs-color-accent); color: #fff;
+    font-size: var(--fs-text-lg); line-height: 1.75rem; font-weight: var(--fs-weight-bold);
+    transition: opacity var(--fs-transition);
+}
+.fs-root .fs-cfg__submit[disabled] { opacity: 0.5; cursor: not-allowed; }
+/* Was: text-center text-xs text-gray-400 mt-2 */
+.fs-root .fs-cfg__note { margin-top: var(--fs-space-2); text-align: center; font-size: var(--fs-text-xs); color: var(--fs-color-text-subtle); }
+
+/* Was: border-gray-200 my-3 — <hr> between option groups */
+.fs-root .fs-cfg__divider { border: 0; border-top: 1px solid var(--fs-color-border); margin-top: var(--fs-space-3); margin-bottom: var(--fs-space-3); }
+
+/* ---- skeleton placeholders (shown while the variant data loads) --------- */
+.fs-root .fs-skeleton { background-color: var(--fs-color-border); border-radius: 0.25rem; animation: fs-pulse 2s cubic-bezier(0.4,0,0.6,1) infinite; }
+.fs-root .fs-skeleton--lg { border-radius: 0.5rem; }
+.fs-root .fs-skeleton--bar { height: 1rem; width: 25%; }
+.fs-root .fs-skeleton--chip { height: 2.25rem; width: 4rem; border-radius: 0.5rem; }
+.fs-root .fs-skeleton--fill-1 { position: absolute; inset: var(--fs-space-1); }
+.fs-root .fs-skeleton--fill-4 { position: absolute; inset: var(--fs-space-4); }
+.fs-root .fs-skeleton-stack > * + * { margin-top: var(--fs-space-4); }
+.fs-root .fs-pulse { animation: fs-pulse 2s cubic-bezier(0.4,0,0.6,1) infinite; }
+
+@keyframes fs-pulse { 0%, 100% { opacity: 1 } 50% { opacity: .5 } }
+
+/* Was: flex gap-2 / flex flex-wrap gap-2 / flex items-baseline gap-3 */
+.fs-root .fs-row { display: flex; gap: var(--fs-space-2); }
+.fs-root .fs-row--wrap { flex-wrap: wrap; }
+.fs-root .fs-row--baseline { align-items: baseline; gap: var(--fs-space-3); }
+
+/* Was: font-bold text-gray-900 / text-xs text-ahy-blue mt-1 animate-pulse */
+.fs-root .fs-strong { font-weight: var(--fs-weight-bold); color: var(--fs-color-text-strong); }
+.fs-root .fs-cfg__loading-note { margin-top: var(--fs-space-1); font-size: var(--fs-text-xs); color: var(--fs-color-accent); }
+
+/* ===========================================================================
+   SMART SLIDER  (slider/smart-slider.phtml)
+
+   IMPORTANT: this template's own <style> block scopes every rule under
+   #<?= $sliderId ?> — a per-instance id. Its .msi-* and .swiper-* classes are
+   therefore ALREADY isolated and cannot collide with a host theme, so they are
+   deliberately left alone. Only the raw Tailwind utilities are converted here,
+   since those are the part that breaks on a non-Hyva store.
+
+   .swiper-* belongs to the Swiper library and must never be renamed.
+
+   The slider's product slide-over is structurally the same as the config
+   modal's, so it reuses .fs-cfg__* wherever the values match.
+   =========================================================================== */
+
+/* Was: my-12 / flex items-center justify-between mb-6 / px-2 */
+.fs-root .fs-slider { margin-top: 3rem; margin-bottom: 3rem; }
+.fs-root .fs-slider__head { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--fs-space-6); }
+.fs-root .fs-slider__pad { padding-left: var(--fs-space-2); padding-right: var(--fs-space-2); }
+
+/* Was: border border-ahy-bg — the slide outline */
+.fs-root .fs-slider__slide { border: 1px solid var(--fs-color-surface); }
+
+/* Was: msi-bookmark hidden md:flex */
+.fs-root .fs-md-flex { display: none; }
+@media (min-width: 768px) { .fs-root .fs-md-flex { display: flex; } }
+
+/* ---- product slide-over (shares most values with the config modal) ------ */
+
+/* Was: fixed inset-0 */
+.fs-root .fs-panel { position: fixed; inset: 0; }
+/* Was: absolute inset-y-0 right-0 w-full max-w-md bg-white shadow-2xl overflow-y-auto flex flex-col */
+.fs-root .fs-panel__sheet {
+    position: absolute; top: 0; bottom: 0; right: 0;
+    width: 100%; max-width: 28rem;
+    display: flex; flex-direction: column; overflow-y: auto;
+    background-color: var(--fs-color-card);
+    box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.25);
+}
+
+/* Was: flex items-start justify-between p-5 border-b border-gray-100 */
+.fs-root .fs-cfg__head--ruled { padding: 1.25rem; border-bottom: 1px solid var(--fs-color-border-soft); }
+/* Was: pr-4 */
+.fs-root .fs-cfg__head-text--flush { flex: 0 1 auto; }
+/* Was: text-xl font-bold text-ahy-blue leading-snug */
+.fs-root .fs-cfg__title--brand { font-size: 1.25rem; line-height: 1.375; color: var(--fs-color-accent); }
+/* Was: text-sm text-gray-500 mt-1 */
+.fs-root .fs-cfg__subtitle--loose { margin-top: var(--fs-space-1); }
+/* Was: text-gray-400 hover:text-gray-600 flex-shrink-0 mt-1 */
+.fs-root .fs-cfg__close--plain { width: auto; height: auto; margin-top: var(--fs-space-1); font-size: inherit; }
+.fs-root .fs-cfg__close--plain:hover { color: var(--fs-color-text-muted-strong); }
+
+/* Was: flex gap-3 p-4 border-b border-gray-100 */
+.fs-root .fs-cfg__gallery--ruled { padding: var(--fs-space-4); border-bottom: 1px solid var(--fs-color-border-soft); }
+/* Was: w-16 h-16 border-2 rounded-lg overflow-hidden flex-shrink-0 transition-colors */
+.fs-root .fs-cfg__thumb--flat { padding: 0; }
+/* Was: w-full h-full object-cover */
+.fs-root .fs-cfg__thumb-img--cover { object-fit: cover; }
+/* Was: relative flex-1 bg-gray-50 rounded-xl overflow-hidden */
+.fs-root .fs-cfg__stage--clip { overflow: hidden; display: block; }
+/* Was: flex-1 p-5 */
+.fs-root .fs-cfg__body--padded { padding: 1.25rem; }
+.fs-root .fs-cfg__body--padded > * + * { margin-top: 0; }
+
+/* Was: flex items-baseline gap-1.5 */
+.fs-root .fs-row--baseline-tight { display: flex; align-items: baseline; gap: 0.375rem; }
+/* Was: text-3xl font-extrabold text-gray-900 */
+.fs-root .fs-cfg__price--dark { font-size: 1.875rem; line-height: 2.25rem; color: var(--fs-color-text-strong); }
+/* Was: text-base font-medium text-gray-400 line-through */
+.fs-root .fs-cfg__price-was--base { font-size: var(--fs-text-base); line-height: 1.5rem; font-weight: 500; }
+/* Was: text-sm text-red-500 font-semibold */
+.fs-root .fs-cfg__save--alt { font-weight: var(--fs-weight-semibold); color: var(--fs-color-wishlist-active); }
+/* Was: text-ahy-blue text-sm underline font-semibold mb-5 inline-block */
+.fs-root .fs-cfg__link--below { margin-top: 0; margin-bottom: 1.25rem; }
+/* Was: text-sm font-bold text-gray-700 mb-2 */
+.fs-root .fs-cfg__label--bold { font-weight: var(--fs-weight-bold); }
+/* Was: px-4 py-2 rounded-lg border-2 text-sm font-semibold transition-all */
+.fs-root .fs-cfg__swatch--semibold { font-weight: var(--fs-weight-semibold); }
+/* Was: p-4 border-t border-gray-100 */
+.fs-root .fs-cfg__footer--ruled { position: static; padding: var(--fs-space-4); border-top: 1px solid var(--fs-color-border-soft); }
+/* Was: w-full py-4 rounded-full bg-ahy-red text-white font-bold text-sm
+        uppercase tracking-widest hover:opacity-90 transition
+        disabled:opacity-50 disabled:cursor-not-allowed flex items-center
+        justify-center gap-2 — the slider's CTA is smaller/uppercase and red,
+        unlike the config modal's large blue one. */
+.fs-root .fs-cfg__submit--sale {
+    background-color: var(--fs-color-sale);
+    gap: var(--fs-space-2);
+    font-size: var(--fs-text-sm);
+    line-height: 1.25rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+}
+.fs-root .fs-cfg__submit--sale:hover { opacity: 0.9; }
+
+/* Was: mb-3 / mb-4 — one-off spacing in the slide-over */
+.fs-root .fs-mb-3 { margin-bottom: var(--fs-space-3); }
+.fs-root .fs-mb-4 { margin-bottom: var(--fs-space-4); }
+/* Was: w-5 h-5 object-contain */
+.fs-root .fs-icon--contain { object-fit: contain; }
+
+/* ===========================================================================
+ * MODAL SHELL — the one intentionally UNSCOPED class in this file.
+ *
+ * Everything else here is scoped `.fs-root ...`. This rule cannot be, because
+ * .fs-modal-shell is the element that WRAPS #ahyModal, and #ahyModal is what
+ * carries .fs-root. It sits just outside the isolation boundary, so it also
+ * never receives the `all: unset` reset from fs-base.css.
+ *
+ * It replaces a bare class="columns", which was borrowed from the Hyva/Everest
+ * theme for its centered container. The borrowing also dragged in the theme's
+ * page-grid rule (`.page-layout-2columns-left .columns { ... }` — a descendant
+ * selector that matches ANY .columns under <body>), which meant the host page's
+ * column count silently resized the search overlay.
+ *
+ * The declarations below are copied verbatim from the theme's compiled
+ * styles.css `.columns` rules, so rendering is byte-for-byte identical to what
+ * the borrowed class produced — but under a namespaced name nothing else
+ * targets.
+ *
+ * `display: grid` with a single column is kept rather than `block`: minmax(0, 1fr)
+ * stops wide content (a long unbreakable product title) from blowing the
+ * container out, which a plain block would allow.
+ * ======================================================================== */
+.fs-modal-shell {
+    display: grid;
+    grid-template-columns: repeat(1, minmax(0, 1fr));
+    column-gap: 2rem;
+    row-gap: 1rem;
+    width: 100%;
+    margin-left: auto;
+    margin-right: auto;
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+}
+
+@media (min-width: 640px)  { .fs-modal-shell { max-width: 640px; } }
+@media (min-width: 768px)  { .fs-modal-shell { max-width: 768px; } }
+@media (min-width: 1024px) { .fs-modal-shell { max-width: 1024px; } }
+@media (min-width: 1280px) { .fs-modal-shell { max-width: 1280px; } }
+@media (min-width: 1536px) { .fs-modal-shell { max-width: 1536px; } }
+
+
+/* ---------------------------------------------------------------------------
+ * Loading height.
+ *
+ * While results are being fetched the grid empties. Without a reserved height
+ * the page collapses, the browser clamps the scroll position, and the shopper is
+ * thrown back to the top — which is what the pagination scroll fix in
+ * search-results.js also works around.
+ *
+ * This used to be an !important inline style written onto the HOST's
+ * .column.main by JavaScript. Same effect, on an element we own.
+ * ------------------------------------------------------------------------- */
+.fs-root.is-loading {
+    min-height: var(--fs-plp-loading-min-height, 1900px);
 }

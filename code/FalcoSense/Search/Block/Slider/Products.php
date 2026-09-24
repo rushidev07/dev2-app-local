@@ -6,12 +6,15 @@ namespace FalcoSense\Search\Block\Slider;
 use Magento\Framework\View\Element\Template;
 use Magento\Framework\View\Element\Template\Context;
 use FalcoSense\Search\Helper\Data as SmartSearchHelper;
+use FalcoSense\Search\Block\Plp\PresentationConfigTrait;
 use FalcoSense\Search\Model\StyleConfig\Reader as StyleConfigReader;
 use Magento\Customer\Model\Session as CustomerSession;
 use Magento\Directory\Model\RegionFactory;
 
 class Products extends Template
 {
+    use PresentationConfigTrait;
+
     private SmartSearchHelper $helper;
     private CustomerSession   $customerSession;
     private RegionFactory     $regionFactory;

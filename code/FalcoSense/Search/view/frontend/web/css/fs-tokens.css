@@ -46,6 +46,14 @@
     --fs-color-text-subtle: #9ca3af;     /* struck-through original price */
     --fs-color-border: #e5e7eb;
     --fs-color-border-strong: #9ca3af;
+    --fs-color-border-strong-soft: #d1d5db;   /* gray-300 — card control borders */
+    --fs-color-wishlist-active: #ef4444;      /* red-500 — wishlist hover */
+    --fs-color-text-strongish: #1f2937;       /* gray-800 */
+    --fs-color-text-strong: #111827;          /* gray-900 — FREE Shipping label */
+    --fs-color-text-muted-strong: #4b5563;    /* gray-600 — notice body text */
+    --fs-color-menu-hover: #f9fafb;           /* gray-50 — dropdown item hover */
+    --fs-color-border-soft: #f3f4f6;          /* gray-100 */
+    --fs-color-success: #22c55e;              /* green-500 — add-to-cart toast */
     --fs-color-in-stock: #258635;
     --fs-color-error: #ea4436;
 
@@ -96,6 +104,11 @@
            --fs-loader-image: url("/media/your-loader.gif");
            --fs-loader-spinner-display: none;
        (The second one turns off the built-in spinner so they don't overlap.) */
+    /* Height held on the listing root while a fetch is in flight, so the page
+       does not collapse and throw the shopper's scroll position to the top.
+       Tune per store: it wants to be roughly a full grid's height. */
+    --fs-plp-loading-min-height: 1900px;
+
     --fs-loader-image: none;
     --fs-loader-spinner-display: block;
     --fs-loader-size: 100px;

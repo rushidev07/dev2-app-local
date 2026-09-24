@@ -1,5 +1,32 @@
 <?xml version="1.0"?>
-<page xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+<!--
+    layout="1column" — the native way to say "this page has no sidebar".
+
+    This page removes Magento's layered-navigation sidebar (see
+    sidebar.main below) because FalcoSense renders its own filter column
+    inside the main content area. But removing the sidebar's CONTENTS does
+    not change the page's LAYOUT: <body> kept page-layout-2columns-left and
+    the theme's .columns grid went on reserving a column for a sidebar that
+    was no longer there.
+
+    The listing then had to fight that empty column from CSS:
+
+        .catalog-category-view.page-layout-2columns-left .columns {
+            grid-template-columns: repeat(1, minmax(0, 1fr));
+        }
+
+    which only works on a theme that lays out .columns as a CSS grid with
+    those exact body classes — i.e. Magento's own layouts and anything built
+    on them. Declaring the layout instead gets the same result from the
+    framework, on any theme, with no CSS.
+
+    fs_search_index.xml has always done this; the category page had not.
+
+    NOTE: this forces one column on EVERY category page. A storefront that
+    wants to keep its own sidebar alongside our listing would need this to
+    become configurable.
+-->
+<page xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" layout="1column"
       xsi:noNamespaceSchemaLocation="urn:magento:framework:View/Layout/etc/page_configuration.xsd">
     <body>
         <referenceContainer name="content">
@@ -51,5 +78,20 @@
 
         <!-- Remove the layered navigation sidebar -->
         <referenceContainer name="sidebar.main" remove="true"/>
-    </body>
+    
+        <!--
+            Listing structured data (ItemList + Product/Offer).
+
+            Mounted directly in "content" rather than as a child of the grid
+            block: a host module may remove our grid (Ahy_PlpRevamp does), and
+            structured data should not disappear with someone else's layout
+            choice. Renders nothing on non-canonical views — see
+            Block/Plp/StructuredData.
+        -->
+        <referenceContainer name="content">
+            <block class="FalcoSense\Search\Block\Plp\StructuredData"
+                   name="falcosense_plp_structured_data"
+                   template="FalcoSense_Search::plp/structured-data.phtml"/>
+        </referenceContainer>
+</body>
 </page>

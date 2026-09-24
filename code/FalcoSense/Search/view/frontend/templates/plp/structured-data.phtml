@@ -1,0 +1,13 @@
+<?php
+/**
+ * Prints the listing's JSON-LD.
+ *
+ * The block returns a complete <script type="application/ld+json"> element built
+ * by JsonLdBuilder, which json_encode()s with JSON_HEX_TAG | JSON_HEX_AMP |
+ * JSON_HEX_APOS | JSON_HEX_QUOT — so every value is already escaped against
+ * breaking out of the script element. Escaping again here would corrupt the JSON.
+ *
+ * @var \FalcoSense\Search\Block\Plp\StructuredData $block
+ */
+?>
+<?= /* @noEscape */ $block->getJsonLd() ?>

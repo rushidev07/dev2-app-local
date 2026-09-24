@@ -86,15 +86,15 @@ function initMiniSearch() {
 }
 </script>
 
-<div class="container px-0 py-2 mx-auto text-black" x-data="initMiniSearch()">
-    <form class="form minisearch relative" id="search_mini_form" x-ref="form" @submit.prevent="search()"
+<div class="fs-root fs-minisearch" x-data="initMiniSearch()">
+    <form class="fs-minisearch__form" id="search_mini_form" x-ref="form" @submit.prevent="search()"
           action="<?= $fsSearchUrl ?>" method="get">
 
-        <label class="hidden" for="search" data-role="minisearch-label">
+        <label class="fs-visually-hidden" for="search" data-role="minisearch-label">
             <span><?= $escaper->escapeHtml(__('Search')) ?></span>
         </label>
 
-        <div class="relative flex items-center" data-ahy-file="2-FalcoSense_Search-html-header-search-form">
+        <div class="fs-minisearch__field" data-ahy-file="2-FalcoSense_Search-html-header-search-form">
             <input id="search"
                 x-ref="searchInput"
                 type="text"
@@ -103,8 +103,7 @@ function initMiniSearch() {
                 value="<?= /** @noEscape */ $helper->getEscapedQueryText() ?>"
                 placeholder="<?= $escaper->escapeHtmlAttr(__('Search for products')) ?>"
                 maxlength="<?= $escaper->escapeHtmlAttr($helper->getMaxQueryLength()) ?>"
-                class="w-full p-2 py-3 leading-normal placeholder-black transition appearance-none text-grey-800
-                       focus:outline-none focus:border-transparent focus:ring-transparent pl-6 rounded-full border-transparent"
+                class="fs-minisearch__input"
                 @focus="onFocus()"
                 @input.debounce.300="suggest()"
                 @keydown.escape="window.dispatchEvent(new CustomEvent('ahy-modal-close'))"
@@ -151,401 +150,45 @@ window.ahyTokenRefresh = window.ahyTokenRefresh || (function () {
     };
 })();
 
-function ahyModalSearch(productsApiUrl, searchToken, addToCartUrl) {
-    return {
-        productsApiUrl,
-        searchToken,
-        addToCartUrl,
-        results: [],
-        popularProducts: [],
-        popularSearches: [],
-        isMobile: window.innerWidth < 768,
-        popularScrollPos: 0,
-        popularScrollMax: 0,
-        _popDragging: false,
-        _popDragStartX: 0,
-        _popDragScrollLeft: 0,
-        _popDragMoved: false,
-        filters: [],
-        apiFacets: [],
-        activeFilters: [],
-        priceRange: { min: null, max: null },
-        activePriceMin: '',
-        activePriceMax: '',
-        activePriceRange: null,
-        priceCollapsed: false,
-        total: 0,
-        page: 1,
-        pageSize: 12,
-        totalPages: 1,
-        sort: 'relevance',
-        loading: false,
-        paginationLoading: false,
-        cartLoading: {},
-        wishLoading: {},
-        mobileFiltersOpen: false,
-        mobileSortOpen: false,
-        wasCorrection: false,
-        correctedQuery: '',
-        originalQuery: '',
-        suggestedQuery: '',
-        searchQuery: '',
-        _pageContent: [],
-
-        init() {
-            if (window._ahyModalInited) return;
-            window._ahyModalInited = true;
-            this.$watch('mobileFiltersOpen', val => { document.body.style.overflow = val ? 'hidden' : ''; });
-            window.ahyTokenRefresh.get().then(t => { if (t) this.searchToken = t; });
-            window.addEventListener('ahy-token-refreshed', e => { this.searchToken = e.detail; });
-
-            this._pageContent = [
-                document.querySelector('main'),
-                document.querySelector('.page-main'),
-                document.querySelector('#maincontent'),
-            ].filter((el, i, arr) => el && arr.indexOf(el) === i);
-
-            const wrapper = this.$el.closest('.columns') || this.$el;
-            const header  = document.querySelector('header') || document.querySelector('.page-header');
-            if (header && header.parentNode) {
-                header.parentNode.insertBefore(wrapper, header.nextSibling);
-            }
-
-            window.addEventListener('ahy-modal-search', (e) => {
-                const q = e.detail.query;
-                if (q !== this.searchQuery) { this.page = 1; this.sort = 'relevance'; this.activeFilters = []; this.activePriceMin = ''; this.activePriceMax = ''; this.activePriceRange = null; this.wasCorrection = false; this.correctedQuery = ''; }
-                this.searchQuery = q;
-                this.openModal();
-                this.fetch();
-            });
-            window.addEventListener('ahy-modal-open', () => { if (this.searchQuery) this.openModal(); });
-            window.addEventListener('ahy-modal-close', () => this.closeModal());
-            window.addEventListener('resize', () => { this.isMobile = window.innerWidth < 768; });
-            window.addEventListener('mousemove', (e) => this._popDragMove(e));
-            window.addEventListener('mouseup', () => this._popDragEnd());
-        },
-
-        openModal() {
-            this.$el.classList.add('is-open');
-            document.body.classList.add('ahy-search-open');
-            window.scrollTo(0, 0);
-        },
-
-        closeModal() {
-            this.$el.classList.remove('is-open');
-            document.body.classList.remove('ahy-search-open');
-            if (window._ahySearchPushCount > 0) {
-                const n = window._ahySearchPushCount;
-                window._ahySearchPushCount = 0;
-                window._ahySuppressPopstateReload = true;
-                history.go(-n);
-            } else {
-                history.replaceState(history.state, '', window._ahyOriginalUrl);
-            }
-        },
-
-        async fetch() {
-            this.loading = true;
-            try {
-                const url = new URL(this.productsApiUrl);
-                url.searchParams.set('search_token', this.searchToken);
-                url.searchParams.set('q', this.wasCorrection && this.correctedQuery ? this.correctedQuery : this.searchQuery);
-                url.searchParams.set('page', this.page);
-                url.searchParams.set('per_page', this.pageSize);
-                url.searchParams.set('include_variants', '1');
-                this.activeFilters.forEach(f => url.searchParams.set(f.key, f.value));
-                if (this.activePriceMin !== '') url.searchParams.set('price_min', this.activePriceMin);
-                if (this.activePriceMax !== '') url.searchParams.set('price_max', this.activePriceMax);
-                if (this.sort !== 'relevance') url.searchParams.set('sort', this.sort);
-
-                let resp = await window.fetch(url.toString(), { credentials: 'include', cache: 'no-store' });
-                if (resp.status === 401) {
-                    await window.ahyTokenRefresh.refresh();
-                    url.searchParams.set('search_token', this.searchToken);
-                    resp = await window.fetch(url.toString(), { credentials: 'include', cache: 'no-store' });
-                }
-                const data = await resp.json();
-
-                if (data.success) {
-                    this.results       = data.data || [];
-                    if (this.results.length) console.log('[AhyModal] product.image samples:', this.results.slice(0,3).map(p => ({sku: p.sku, image: p.image})));
-                    this.total         = (data.pagination && data.pagination.total) || data.total || 0;
-                    this.pageSize      = (data.pagination && data.pagination.per_page) || this.pageSize;
-                    this.totalPages    = Math.max(1, Math.ceil(this.total / this.pageSize));
-                    this.apiFacets     = data.facets || [];
-                    this.wasCorrection = !!data.was_corrected;
-                    this.correctedQuery = data.corrected_query || this.searchQuery;
-                    this.originalQuery  = data.original_query  || this.searchQuery;
-                    this.suggestedQuery = data.suggested_query || '';
-                    this.buildFilters();
-                    if (this.results.length === 0) { this.fetchPopularProducts(); this.fetchPopularSearches(); }
-                }
-            } catch(e) { console.error('[AhyModal] fetch error', e); }
-            this.loading = false;
-        },
-
-        async fetchPopularProducts() {
-            if (this.popularProducts.length) return;
-            try {
-                const url = new URL(this.productsApiUrl);
-                url.searchParams.set('search_token', this.searchToken);
-                url.searchParams.set('q', 'outdoor');
-                url.searchParams.set('per_page', '8');
-                url.searchParams.set('include_variants', '1');
-                const resp = await window.fetch(url.toString(), { credentials: 'include', cache: 'no-store' });
-                const data = await resp.json();
-                if (data.success && data.data) {
-                    this.popularProducts = data.data;
-                } else if (data.products) {
-                    this.popularProducts = data.products;
-                }
-                console.log('[Popular]', this.popularProducts.length, 'products loaded');
-                this.$nextTick(() => {
-                    const el = this.$refs.popScroll;
-                    if (el) this.popularScrollMax = el.scrollWidth - el.clientWidth;
-                });
-            } catch(e) { console.error('[Popular] fetch error', e); }
-        },
-
-        async fetchPopularSearches() {
-            if (this.popularSearches.length) return;
-            try {
-                const suggestUrl = this.productsApiUrl.replace('/api/v1/products', '/api/v1/suggest');
-                const url = new URL(suggestUrl);
-                url.searchParams.set('search_token', this.searchToken);
-                const resp = await window.fetch(url.toString(), { credentials: 'include', cache: 'no-store' });
-                const data = await resp.json();
-                this.popularSearches = (data.suggestions || data.terms || data.results || []).slice(0, 8);
-            } catch(e) { console.error('[PopularSearches] fetch error', e); }
-        },
-
-        buildFilters() {
-            if (!this.apiFacets.length) return;
-            const priceFacet = this.apiFacets.find(f => f.key === 'price');
-            if (priceFacet) this.priceRange = { min: priceFacet.min ?? null, max: priceFacet.max ?? null };
-            this.filters = this.apiFacets
-                .filter(f => f.key !== 'price' && f.key !== 'category')
-                .map(f => ({
-                    key:       f.key,
-                    label:     f.key === 'brand' ? 'Shop By Brand' : f.label,
-                    collapsed: false,
-                    showAll:   false,
-                    options:   (f.options || []).map(o => ({ value: o.value, count: o.count })),
-                }));
-        },
-
-        sortedResults() { return this.results; },
-
-        searchExact(q) {
-            window.location.href = '/catalogsearch/result/?q=' + encodeURIComponent(q);
-        },
-        _animateScrollTo(targetY, duration = 500) {
-            if (this._scrollAnimFrame) cancelAnimationFrame(this._scrollAnimFrame);
-            const startY = window.scrollY;
-            const distance = targetY - startY;
-            if (Math.abs(distance) < 2) return;
-            const startTime = performance.now();
-            const easeInOutQuad = t => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
-            const step = (now) => {
-                const progress = Math.min((now - startTime) / duration, 1);
-                window.scrollTo(0, startY + distance * easeInOutQuad(progress));
-                if (progress < 1) {
-                    this._scrollAnimFrame = requestAnimationFrame(step);
-                } else {
-                    this._scrollAnimFrame = null;
-                }
-            };
-            this._scrollAnimFrame = requestAnimationFrame(step);
-        },
-        _findVisibleById(id) {
-            const matches = document.querySelectorAll('#' + id);
-            for (const el of matches) { if (el.offsetParent !== null) return el; }
-            return this.$el.querySelector('#' + id);
-        },
-
-        _scrollToResults() {
-            const el = this._findVisibleById('ahy-pagination-anchor');
-            if (!el) return;
-            const y = Math.max(0, el.getBoundingClientRect().top + window.pageYOffset);
-            this._animateScrollTo(y);
-        },
-
-        // Used only for pagination clicks. Same anchor as _scrollToResults(),
-        // kept as its own method for clarity at the call site.
-        _scrollModalToTop() {
-            const el = this._findVisibleById('ahy-pagination-anchor');
-            const y = el ? Math.max(0, el.getBoundingClientRect().top + window.pageYOffset) : 0;
-            this._animateScrollTo(y);
-        },
-
-        toggleFilter(key, label, value) {
-            const idx = this.activeFilters.findIndex(f => f.key === key && f.value === value);
-            if (idx >= 0) this.activeFilters.splice(idx, 1);
-            else this.activeFilters.push({ key, label, value });
-            this.page = 1;
-            this._scrollToResults();
-            this.fetch();
-        },
-
-        removeFilter(key, value) {
-            this.activeFilters = this.activeFilters.filter(f => !(f.key === key && f.value === value));
-            this.page = 1; this._scrollToResults(); this.fetch();
-        },
-
-        applyPriceFilter() { this.page = 1; this._scrollToResults(); this.fetch(); },
-        clearPriceFilter() { this.activePriceMin = ''; this.activePriceMax = ''; this.activePriceRange = null; this.page = 1; this._scrollToResults(); this.fetch(); },
-        clearAllFilters() { this.activeFilters = []; this.activePriceMin = ''; this.activePriceMax = ''; this.activePriceRange = null; this.page = 1; this._scrollToResults(); this.fetch(); },
-
-        priceRangeBuckets() {
-            if (this.priceRange.min === null) return [];
-            return [
-                { label: 'Under $50',     min: '',   max: 50   },
-                { label: '$50 – $100',    min: 50,   max: 100  },
-                { label: '$100 – $250',   min: 100,  max: 250  },
-                { label: '$250 – $500',   min: 250,  max: 500  },
-                { label: '$500 – $1,000', min: 500,  max: 1000 },
-                { label: 'Over $1,000',   min: 1000, max: ''   },
-            ].filter(b => {
-                const lo = b.min === '' ? 0 : b.min;
-                const hi = b.max === '' ? Infinity : b.max;
-                return lo < this.priceRange.max && hi > this.priceRange.min;
-            });
-        },
-
-        togglePriceRange(bucket) {
-            if (this.activePriceRange && this.activePriceRange.label === bucket.label) {
-                this.activePriceRange = null; this.activePriceMin = ''; this.activePriceMax = '';
-            } else {
-                this.activePriceRange = bucket;
-                this.activePriceMin = bucket.min === '' ? '' : String(bucket.min);
-                this.activePriceMax = bucket.max === '' ? '' : String(bucket.max);
-            }
-            this.applyPriceFilter();
-        },
-
-        isFilterActive(key, value) { return this.activeFilters.some(f => f.key === key && f.value === value); },
-
-       goToPage(p) { this.page = p; this.paginationLoading = true; this.fetch().then(() => { this.paginationLoading = false; this.$nextTick(() => this._scrollModalToTop()); }); },
-        setSort(val) { this.sort = val; this.page = 1; this.fetch(); },
-        sortLabel() {
-            return { relevance: 'Relevance', price_asc: 'Price: Low to high', price_desc: 'Price: High to low' }[this.sort] || 'Relevance';
-        },
-
-        FALLBACK_IMG: '/media/.thumbswysiwyg/everest-logo_2_.png',
-        isFallbackImg(image) {
-            return this.imgUrl(image) === this.FALLBACK_IMG;
-        },
-        imgUrl(image) {
-            if (!image || image.includes('no_selection')) return this.FALLBACK_IMG;
-            if (image.includes('falcosense/800x800')) return image;
-            const isHttp = image.startsWith('http');
-            const path = isHttp ? image.replace(/^https?:\/\/[^/]+/, '') : image;
-            const m = path.match(/\/catalog\/product\/(.+)$/);
-            if (!m && isHttp) return this.FALLBACK_IMG;
-            const rel = m ? m[1] : path.replace(/^\/+/, '');
-            if (!rel) return this.FALLBACK_IMG;
-            const filename = rel.split('/').pop();
-            if (!filename) return this.FALLBACK_IMG;
-            const c1 = filename[0], c2 = filename[1] || c1;
-            return '/media/falcosense/800x800/' + c1 + '/' + c2 + '/' + filename;
-        },
-        handleImgError(event) {
-            const el = event.target;
-            if (el.dataset.imgFailed) return;
-            el.dataset.imgFailed = '1';
-            el.src = this.FALLBACK_IMG;
-            el.style.opacity = '0.45';
-        },
-
-        async addSimpleToCart(product) {
-            const pid = product.product_id;
-            console.log('[AhyModal] addSimpleToCart pid:', pid, 'url:', '<?= $escaper->escapeJs($addToCartUrl) ?>');
-            this.cartLoading = { ...this.cartLoading, [pid]: true };
-            try {
-                const params = new URLSearchParams({ product: pid, qty: 1, form_key: hyva.getFormKey() });
-                const resp = await fetch('<?= $escaper->escapeJs($addToCartUrl) ?>', {
-                    method: 'POST',
-                    body: params,
-                    headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8', 'X-Requested-With': 'XMLHttpRequest' },
-                });
-                console.log('[AhyModal] addToCart resp:', resp.status, 'ok:', resp.ok, 'redirected:', resp.redirected, 'url:', resp.url);
-                if (resp.ok || resp.redirected) {
-                    window.dispatchEvent(new CustomEvent('reload-customer-section-data'));
-                    window.dispatchEvent(new CustomEvent('toggle-cart'));
-                    typeof window.dispatchMessages !== 'undefined' && window.dispatchMessages([{ type: 'success', text: 'Product added to cart.' }], 3000);
-                }
-            } catch(e) { console.error('[AhyModal] addToCart error', e); }
-            finally { this.cartLoading = { ...this.cartLoading, [pid]: false }; }
-        },
-
-        async addToWishlistModal(productId) {
-            const pid = productId;
-            this.wishLoading = { ...this.wishLoading, [pid]: true };
-            try {
-                const resp = await window.fetch(BASE_URL + 'wishlist/index/add/', {
-                    method: 'POST',
-                    headers: { 'content-type': 'application/x-www-form-urlencoded; charset=UTF-8' },
-                    body: 'form_key=' + hyva.getFormKey() + '&product=' + pid + '&uenc=' + hyva.getUenc(),
-                    credentials: 'include',
-                });
-                if (resp.redirected) { window.location.href = resp.url; return; }
-                if (resp.ok) {
-                    const data = await resp.json().catch(() => null);
-                    const msg = data && data.success ? 'Product added to Wish List.' : (data && data.error_message) || 'Could not add to wishlist.';
-                    const type = data && data.success ? 'success' : 'error';
-                    typeof window.dispatchMessages !== 'undefined' && window.dispatchMessages([{ type, text: msg }], 5000);
-                    window.dispatchEvent(new CustomEvent('reload-customer-section-data'));
-                }
-            } catch(e) { console.error('[AhyModal] wishlist error', e); }
-            this.wishLoading = { ...this.wishLoading, [pid]: false };
-        },
-
-        _popScrollUpdate(el) {
-            this.popularScrollPos = el.scrollLeft;
-            this.popularScrollMax = el.scrollWidth - el.clientWidth;
-        },
-        _popDragStart(e, el) {
-            this._popDragging = true;
-            this._popDragStartX = e.pageX - el.getBoundingClientRect().left;
-            this._popDragScrollLeft = el.scrollLeft;
-            this._popDragMoved = false;
-            el.classList.add('is-dragging');
-        },
-        _popDragMove(e) {
-            if (!this._popDragging) return;
-            const el = this.$refs.popScroll;
-            if (!el) return;
-            const x = e.pageX - el.getBoundingClientRect().left;
-            const walk = x - this._popDragStartX;
-            el.scrollLeft = this._popDragScrollLeft - walk;
-            if (Math.abs(walk) > 5) this._popDragMoved = true;
-        },
-        _popDragEnd() {
-            if (!this._popDragging) return;
-            this._popDragging = false;
-            const el = this.$refs.popScroll;
-            if (el) el.classList.remove('is-dragging');
-        },
-        _popCardWidth() {
-            const el = this.$refs.popScroll;
-            if (!el) return 0;
-            const card = el.querySelector('.pop-card');
-            return card ? card.offsetWidth + 12 : el.clientWidth;
-        },
-        _popScrollPrev() {
-            const el = this.$refs.popScroll;
-            if (el) el.scrollBy({ left: -this._popCardWidth(), behavior: 'smooth' });
-        },
-        _popScrollNext() {
-            const el = this.$refs.popScroll;
-            if (el) el.scrollBy({ left: this._popCardWidth(), behavior: 'smooth' });
-        },
-    };
-}
+/*
+ * ahyModalSearch() now lives in web/js/plp/modal-search.js.
+ *
+ * It was 391 lines inline here, which meant replacing this template's markup
+ * also meant losing the overlay's behaviour. Registered in
+ * view/frontend/layout/default.xml; the file guards against overwriting a
+ * host-supplied component of the same name.
+ *
+ * It is still a fork of the engine in search-results.js — see that file's header
+ * for what remains to be merged.
+ */
 </script>
 
-<div class="columns">
-<div id="ahyModal"
+<!--
+    fs-modal-shell replaces a bare class="columns" here.
+
+    That class was borrowed from the theme to get its centered container
+    (max-width ladder + 1.5rem gutters). It also matched the theme's PAGE GRID
+    rule, which is a descendant selector:
+        .page-layout-2columns-left .columns { grid-template-columns: repeat(N, ...) }
+    Any .columns under <body> matches it — including this one, sitting in the
+    header and nowhere near the page layout. So whenever the host page's grid
+    said 4 columns, this wrapper became a 4-column grid and the search overlay
+    was squeezed into a quarter of the width. Forcing the host grid to 1 column
+    fixed the overlay but collapsed the sidebar on every other page.
+
+    The container styling is now replicated under our own namespaced class in
+    fs-components.css, so the host's page-layout rules cannot reach it and we no
+    longer need to override them.
+-->
+<div class="fs-modal-shell">
+<!--
+    .fs-root is the isolation boundary. Everything inside it gets the
+    `all: unset` reset from fs-base.css, so the host theme's CSS cannot reach
+    FalcoSense's markup and FalcoSense's CSS cannot escape into the host page.
+    It is added here — not on <body> or a theme container — so the boundary
+    covers exactly what this module owns and nothing else.
+-->
+<div id="ahyModal" class="fs-root"
      x-data="ahyModalSearch('<?= $escaper->escapeJs($productsApiUrl) ?>', '<?= $escaper->escapeJs($searchToken) ?>', '<?= $escaper->escapeJs($addToCartUrl) ?>')"
      x-init="init()"
      x-cloak>
@@ -555,8 +198,8 @@ function ahyModalSearch(productsApiUrl, searchToken, addToCartUrl) {
          leaves a side gutter at this position, but on mobile that container is full-width,
          so without explicit padding this heading sits flush against the screen edge while
          everything below it (cards, buttons) carries its own padding and doesn't. -->
-    <div class="pt-8 pb-0 px-4 lg:px-0">
-        <h1 class="text-ahy-blue page-title !font-extrabold title-font uppercase text-3xl md:text-6xl"
+    <div class="fs-modal__head">
+        <h1 class="fs-modal__title"
             x-text="'SEARCH RESULTS FOR: \'' + searchQuery.toUpperCase() + '\''"></h1>
     </div>
 
@@ -570,128 +213,128 @@ function ahyModalSearch(productsApiUrl, searchToken, addToCartUrl) {
          flight, so nothing collapses/reflows while the shopper keeps typing
          (no CLS). Only the very first-ever fetch (nothing rendered yet) has no
          content to sit on top of, so it gets a min-height placeholder instead. -->
-    <div id="ahy-results-layout" class="ahy-results-rederer flex lg:px-6 pb-16 relative"
+    <div id="ahy-results-layout" class="fs-results-row"
          :style="(loading && !results.length) ? 'min-height:420px' : ''">
 
         <!-- Loader — covers the full filters+products row, shown for typing/filter/sort fetches and pagination -->
-        <div x-show="loading || paginationLoading" x-cloak class="ahy-products-loader-overlay">
-            <div class="ahy-page-loader" style="margin:0;"></div>
+        <div x-show="loading || paginationLoading" x-cloak class="fs-loader-overlay">
+            <div class="fs-loader" style="margin:0;"></div>
         </div>
 
         <!-- ── Sidebar ─────────────────────────────────── -->
-        <aside class="ahy-filters hidden md:block shrink-0 pt-6 pr-6" x-show="loading || results.length > 0">
+        <aside class="fs-sidebar" x-show="loading || results.length > 0">
 
             <!-- Item count -->
-            <div x-show="!loading" class="border-b-2 border-ahy-blue pb-3 mb-0">
-                <span class="text-sm font-semibold text-ahy-blue">(<span x-text="total"></span> Items)</span>
+            <div x-show="!loading && !error" class="fs-sidebar__count">
+                <span class="fs-sidebar__count-text">(<span x-text="total"></span> Items)</span>
             </div>
 
             <!-- Active filter tags -->
-            <div x-show="activeFilters.length > 0 || activePriceMin !== '' || activePriceMax !== ''" class="mt-4 mb-2 flex flex-wrap gap-2">
+            <div x-show="activeFilters.length > 0 || activePriceMin !== '' || activePriceMax !== ''" class="fs-chips">
                 <template x-for="f in activeFilters" :key="f.key + f.value">
-                    <span class="inline-flex items-center gap-1 bg-ahy-blue text-white text-xs px-3 py-1 rounded-full cursor-pointer"
+                    <span class="fs-chip"
                           @click="removeFilter(f.key, f.value)">
                         <span x-text="f.label + ': ' + f.value"></span>
-                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                        <svg class="fs-chevron--sm" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
                     </span>
                 </template>
                 <template x-if="activePriceMin !== '' || activePriceMax !== ''">
-                    <span class="inline-flex items-center gap-1 bg-ahy-blue text-white text-xs px-3 py-1 rounded-full cursor-pointer" @click="clearPriceFilter()">
+                    <span class="fs-chip" @click="clearPriceFilter()">
                         <span x-text="'Price: $' + activePriceMin + (activePriceMax ? ' – $' + activePriceMax : '+')"></span>
-                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                        <svg class="fs-chevron--sm" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
                     </span>
                 </template>
-                <button class="text-xs text-ahy-blue underline" @click="clearAllFilters()">Reset all</button>
+                <button class="fs-clear-all" @click="clearAllFilters()">Reset all</button>
             </div>
 
             <!-- Filter groups -->
-            <div class="space-y-0" x-show="filters.length > 0 || priceRange.min !== null">
+            <div class="fs-filter-stack" x-show="filters.length > 0 || priceRange.min !== null">
 
                 <?= /* @noEscape */ $block->getChildHtml("header_filters_desktop") ?>
             </div>
         </aside>
 
         <!-- ── Main content ────────────────────────────── -->
-        <div class="flex-1 min-w-0 pt-6">
+        <div class="fs-main">
 
             <!-- ── Mobile filter/sort toolbar ──────────────── -->
-            <div class="md:hidden" x-show="results.length > 0">
-                <div class="flex items-center gap-4 py-4">
+            <div class="fs-mobile-only" x-show="!error && results.length > 0">
+                <div class="fs-mobile-bar">
                     <!-- FILTER BY pill -->
                     <button @click="mobileFiltersOpen = !mobileFiltersOpen; mobileSortOpen = false"
-                            class="flex-shrink-0 border-2 border-ahy-blue text-ahy-blue rounded-full px-6 py-2.5 text-sm font-bold uppercase tracking-wide bg-[#efeadd]"
-                            :class="activeFilters.length > 0 || activePriceMin !== '' ? 'bg-ahy-blue !text-white' : ''">
+                            class="fs-pill-btn"
+                            :class="activeFilters.length > 0 || activePriceMin !== '' ? 'is-active' : ''">
                         FILTER BY
                         <span x-show="activeFilters.length > 0 || activePriceMin !== ''"
                               x-text="' (' + (activeFilters.length + (activePriceMin !== '' ? 1 : 0)) + ')'"></span>
                     </button>
                     <!-- Sort by inline -->
-                    <div x-data="{ open: false }" class="relative flex flex-wrap items-center gap-1 text-sm text-ahy-blue">
-                        <span class="text-gray-600">Sort by:</span>
-                        <button @click="open = !open" class="font-bold flex items-center gap-1 ml-0.5">
+                    <div x-data="{ open: false }" class="fs-sort fs-sort--wrap">
+                        <span class="fs-sort__label">Sort by:</span>
+                        <button @click="open = !open" class="fs-sort__btn fs-sort__btn--tight">
                             <span x-text="sortLabel()"></span>
-                            <svg class="w-4 h-4 transition-transform" :class="open ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                            <svg class="fs-chevron" :class="open ? 'is-open' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
                         </button>
                         <div x-show="open" @click.outside="open = false"
-                             class="absolute left-0 top-8 bg-white border border-gray-200 rounded-xl shadow-lg z-50 w-52 py-1">
-                            <button @click="setSort('relevance'); open = false" class="w-full text-left px-4 py-3 text-sm" :class="sort === 'relevance' ? 'font-bold text-ahy-blue' : ''">Relevance</button>
-                            <button @click="setSort('price_asc'); open = false" class="w-full text-left px-4 py-3 text-sm" :class="sort === 'price_asc' ? 'font-bold text-ahy-blue' : ''">Price: Low to High</button>
-                            <button @click="setSort('price_desc'); open = false" class="w-full text-left px-4 py-3 text-sm" :class="sort === 'price_desc' ? 'font-bold text-ahy-blue' : ''">Price: High to Low</button>
+                             class="fs-menu fs-menu--left">
+                            <button @click="setSort('relevance'); open = false" class="fs-menu__item fs-menu__item--lg" :class="sort === 'relevance' ? 'is-active' : ''">Relevance</button>
+                            <button @click="setSort('price_asc'); open = false" class="fs-menu__item fs-menu__item--lg" :class="sort === 'price_asc' ? 'is-active' : ''">Price: Low to High</button>
+                            <button @click="setSort('price_desc'); open = false" class="fs-menu__item fs-menu__item--lg" :class="sort === 'price_desc' ? 'is-active' : ''">Price: High to Low</button>
                         </div>
                     </div>
                 </div>
 
                 <!-- Mobile sort panel (removed — now inline dropdown above) -->
-                <div x-show="false" class="hidden">
+                <div x-show="false" class="fs-hidden">
                     <button @click="setSort('relevance'); mobileSortOpen = false"
-                            class="w-full text-left px-4 py-3 text-sm" :class="sort === 'relevance' ? 'font-bold text-ahy-blue' : ''">Relevance</button>
+                            class="fs-menu__item fs-menu__item--lg" :class="sort === 'relevance' ? 'is-active' : ''">Relevance</button>
                     <button @click="setSort('price_asc'); mobileSortOpen = false"
-                            class="w-full text-left px-4 py-3 text-sm" :class="sort === 'price_asc' ? 'font-bold text-ahy-blue' : ''">Price: Low to High</button>
+                            class="fs-menu__item fs-menu__item--lg" :class="sort === 'price_asc' ? 'is-active' : ''">Price: Low to High</button>
                     <button @click="setSort('price_desc'); mobileSortOpen = false"
-                            class="w-full text-left px-4 py-3 text-sm" :class="sort === 'price_desc' ? 'font-bold text-ahy-blue' : ''">Price: High to Low</button>
+                            class="fs-menu__item fs-menu__item--lg" :class="sort === 'price_desc' ? 'is-active' : ''">Price: High to Low</button>
                 </div>
 
             </div>
 
             <!-- ── Mobile filter full-screen modal ─────────── -->
             <div x-show="mobileFiltersOpen"
-                 class="md:hidden fixed inset-0 bg-white overflow-y-auto flex flex-col ahy-filter-modal">
+                 class="fs-drawer">
 
                 <!-- Top bar -->
-                <div class="flex items-center justify-between px-4 py-4 border-b border-gray-200 sticky top-0 bg-white z-10">
-                    <button @click="clearAllFilters()" class="text-sm font-semibold text-ahy-blue">Reset</button>
+                <div class="fs-drawer__head">
+                    <button @click="clearAllFilters()" class="fs-sidebar__count-text">Reset</button>
                     <button @click="mobileFiltersOpen = false"
-                            class="w-8 h-8 flex items-center justify-center text-gray-500 text-xl leading-none">&#x2715;</button>
-                    <button @click="mobileFiltersOpen = false" class="text-sm font-semibold text-ahy-blue">Apply</button>
+                            class="fs-drawer__close">&#x2715;</button>
+                    <button @click="mobileFiltersOpen = false" class="fs-sidebar__count-text">Apply</button>
                 </div>
 
                 <!-- Item count -->
-                <div class="px-4 pt-4 pb-3 border-b-2 border-ahy-blue">
-                    <span class="font-semibold text-ahy-blue" x-text="'(' + total + ' Items)'"></span>
+                <div class="fs-drawer__section">
+                    <span class="fs-drawer__section-title" x-text="'(' + total + ' Items)'"></span>
                 </div>
 
                 <!-- Filter groups -->
-                <div class="flex-1 px-4 pb-8">
+                <div class="fs-drawer__body">
 
                     <?= /* @noEscape */ $block->getChildHtml("header_filters_mobile") ?>
                 </div>
             </div>
 
             <!-- Sort row (desktop) -->
-            <div class="hidden md:flex items-center justify-end mb-5" x-show="results.length > 0">
-                <div x-data="{ open: false }" class="relative flex items-center gap-1 text-sm text-ahy-blue">
+            <div class="fs-sortbar" x-show="!error && results.length > 0">
+                <div x-data="{ open: false }" class="fs-sort">
                     <span>Sort by:</span>
-                    <button @click="open = !open" class="font-bold flex items-center gap-1 ml-1">
+                    <button @click="open = !open" class="fs-sort__btn">
                         <span x-text="sortLabel()"></span>
-                        <svg class="w-4 h-4 transition-transform" :class="open ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg class="fs-chevron" :class="open ? 'is-open' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
                         </svg>
                     </button>
                     <div x-show="open" @click.outside="open = false"
-                         class="absolute right-0 top-8 bg-white border border-gray-200 rounded-xl shadow-lg z-50 w-52 py-1">
-                        <button @click="setSort('relevance'); open = false" class="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50" :class="sort === 'relevance' ? 'font-bold text-ahy-blue' : ''">Relevance</button>
-                        <button @click="setSort('price_asc'); open = false" class="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50" :class="sort === 'price_asc' ? 'font-bold text-ahy-blue' : ''">Price: Low to High</button>
-                        <button @click="setSort('price_desc'); open = false" class="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50" :class="sort === 'price_desc' ? 'font-bold text-ahy-blue' : ''">Price: High to Low</button>
+                         class="fs-menu">
+                        <button @click="setSort('relevance'); open = false" class="fs-menu__item" :class="sort === 'relevance' ? 'is-active' : ''">Relevance</button>
+                        <button @click="setSort('price_asc'); open = false" class="fs-menu__item" :class="sort === 'price_asc' ? 'is-active' : ''">Price: Low to High</button>
+                        <button @click="setSort('price_desc'); open = false" class="fs-menu__item" :class="sort === 'price_desc' ? 'is-active' : ''">Price: High to Low</button>
                     </div>
                 </div>
             </div>
@@ -701,50 +344,50 @@ function ahyModalSearch(productsApiUrl, searchToken, addToCartUrl) {
                  same as the results grid below: it must NOT also gate on !loading, or it pops out
                  and back in on every filter/sort/pagination refetch even though its own content
                  hasn't changed, yanking the grid below up and down each time. -->
-            <div x-show="wasCorrection" class="mb-4 px-4 py-3 bg-white rounded-xl border border-gray-200 text-sm text-gray-600">
-                Showing results for <strong class="text-ahy-blue" x-text="correctedQuery"></strong> instead of <em x-text="originalQuery"></em>.
-                <a class="ml-1 text-ahy-blue font-semibold hover:underline cursor-pointer" @click.prevent="searchExact(originalQuery)" x-text="'Search for &quot;' + originalQuery + '&quot; anyway'"></a>
+            <div x-show="wasCorrection" class="fs-notice">
+                Showing results for <strong class="fs-notice__em" x-text="correctedQuery"></strong> instead of <em x-text="originalQuery"></em>.
+                <a class="fs-link fs-link--inline" @click.prevent="searchExact(originalQuery)" x-text="'Search for &quot;' + originalQuery + '&quot; anyway'"></a>
             </div>
-            <div x-show="!wasCorrection && suggestedQuery" class="mb-4 px-4 py-3 bg-white rounded-xl border border-gray-200 text-sm text-gray-600">
-                Did you mean <a class="text-ahy-blue font-semibold hover:underline cursor-pointer" @click.prevent="searchExact(suggestedQuery)" x-text="'&quot;' + suggestedQuery + '&quot;'"></a>?
+            <div x-show="!wasCorrection && suggestedQuery" class="fs-notice">
+                Did you mean <a class="fs-link" @click.prevent="searchExact(suggestedQuery)" x-text="'&quot;' + suggestedQuery + '&quot;'"></a>?
             </div>
 
             <?= /* @noEscape */ $block->getChildHtml("header_zero_results") ?>
 
             <!-- Desktop product grid -->
-            <div x-show="results.length > 0" class="hidden md:grid grid-cols-2 xl:grid-cols-3 ahy-product-grid" style="gap:var(--ahy-grid-gap);">
+            <div x-show="!error && results.length > 0" class="fs-grid" style="gap:var(--ahy-grid-gap);">
                 <template x-for="(product, index) in sortedResults()" :key="product.sku || product.product_id">
                     <?= /* @noEscape */ $block->getChildHtml("header_product_card_desktop") ?>
                 </template>
             </div>
 
             <!-- Mobile product list (< 640px horizontal, 640–768px padded) -->
-            <div x-show="results.length > 0" class="md:hidden flex flex-col ahy-product-grid" style="gap:var(--ahy-grid-gap);">
+            <div x-show="!error && results.length > 0" class="fs-grid--mobile" style="gap:var(--ahy-grid-gap);">
                 <template x-for="(product, index) in sortedResults()" :key="'m-' + (product.sku || product.product_id)">
                     <?= /* @noEscape */ $block->getChildHtml("header_product_card_mobile") ?>
                 </template>
             </div>
 
             <!-- Pagination -->
-            <div x-show="!loading && totalPages > 1" class="flex justify-center items-center gap-8 pt-10 pb-4">
+            <div x-show="!loading && !error && totalPages > 1" class="fs-pager">
                 <button aria-label="Previous" :disabled="page <= 1"
                         @click="page > 1 && goToPage(page - 1)"
-                        class="bg-white shadow-lg rounded-full w-12 h-12 flex items-center justify-center border border-gray-200"
-                        :class="page <= 1 ? 'opacity-30 cursor-not-allowed' : 'hover:border-ahy-blue'">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+                        class="fs-pager__btn"
+                        :class="page <= 1 ? 'is-disabled' : ''">
+                    <svg class="fs-icon fs-icon--lg" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
                 </button>
-                <div x-data="{ open: false }" class="relative">
-                    <button @click="open = !open" class="font-bold text-ahy-blue flex items-center gap-1">
+                <div x-data="{ open: false }" class="fs-pager__pages">
+                    <button @click="open = !open" class="fs-sort__btn fs-sort__btn--plain">
                         Page <span x-text="page"></span> of <span x-text="totalPages"></span>
-                        <svg class="w-4 h-4 ml-1 transition-transform" :class="open ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg class="fs-chevron fs-chevron--inset" :class="open ? 'is-open' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
                         </svg>
                     </button>
                     <nav x-show="open" @click.outside="open = false"
-                         class="absolute bottom-8 left-1/2 -translate-x-1/2 bg-white border border-gray-200 rounded-xl shadow-lg z-20 w-36 max-h-52 overflow-auto py-1">
+                         class="fs-page-menu">
                         <template x-for="p in totalPages" :key="p">
-                            <button class="w-full text-center px-4 py-2.5 text-sm hover:bg-gray-50"
-                                    :class="p === page ? 'font-bold text-ahy-blue' : ''"
+                            <button class="fs-menu__item fs-menu__item--center"
+                                    :class="p === page ? 'is-active' : ''"
                                     @click="goToPage(p); open = false"
                                     x-text="'Page ' + p"></button>
                         </template>
@@ -752,9 +395,9 @@ function ahyModalSearch(productsApiUrl, searchToken, addToCartUrl) {
                 </div>
                 <button aria-label="Next" :disabled="page >= totalPages"
                         @click="page < totalPages && goToPage(page + 1)"
-                        class="bg-white shadow-lg rounded-full w-12 h-12 flex items-center justify-center border border-gray-200"
-                        :class="page >= totalPages ? 'opacity-30 cursor-not-allowed' : 'hover:border-ahy-blue'">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                        class="fs-pager__btn"
+                        :class="page >= totalPages ? 'is-disabled' : ''">
+                    <svg class="fs-icon fs-icon--lg" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
                 </button>
             </div>
 
@@ -763,67 +406,74 @@ function ahyModalSearch(productsApiUrl, searchToken, addToCartUrl) {
 
 
 </div><!-- #ahyModal -->
-</div><!-- .columns -->
+</div><!-- .fs-modal-shell -->
 
 <style>
-/* ── Modal shell ─────────────────────────────────────────── */
+/*
+ * Only rules that CANNOT live in web/css/fs-components.css remain here.
+ *
+ * Everything that styles FalcoSense's own markup has moved to the module
+ * stylesheet under the .fs-root namespace — the carousel (.pop-*), the mobile
+ * card, the loader and the results row all went with it. What is left is the
+ * page-takeover mechanism, which by definition has to reach outside .fs-root:
+ * it hides the HOST page while the modal is open.
+ *
+ * That host coupling is deliberate and is the one thing this module still
+ * asserts about the page it is installed in. It is scoped to body.ahy-search-open
+ * so it only applies while the modal is actually open.
+ */
+
+/* Modal shell. #ahyModal also carries .fs-root; these ID-specificity rules sit
+   above the reset, which is why display/background still apply to it. */
 #ahyModal { display:none; width:100%; min-height:90vh; background:#efeadd; }
 #ahyModal.is-open { display:block; }
+
+/*
+ * Keep the overlay the same width as the rest of the page.
+ *
+ * The theme calls getChildHtml('header-search') THREE times (header.phtml lines
+ * 181, 209, 275 — mobile, desktop, and the sticky desktop variant), so this
+ * template renders three times. Two land inside their .fs-modal-shell wrapper
+ * and inherit its container width. The third ends up reparented directly under
+ * .page-wrapper with no wrapper around it, so it rendered edge-to-edge while
+ * the header and the /fs/search route page stayed centred — the width mismatch
+ * that made the overlay look broken at >=1536px.
+ *
+ * Putting the container on #ahyModal itself makes it correct wherever it lands.
+ * The child rule below then removes it again for the two that ARE wrapped, so
+ * they are not padded twice. `.fs-modal-shell > #ahyModal` is (1,1,0) and beats
+ * the plain `#ahyModal` (1,0,0), so nesting always wins.
+ *
+ * Values match .columns / .fs-modal-shell in web/css/fs-components.css.
+ */
+#ahyModal {
+    margin-left: auto;
+    margin-right: auto;
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+}
+@media (min-width: 640px)  { #ahyModal { max-width: 640px; } }
+@media (min-width: 768px)  { #ahyModal { max-width: 768px; } }
+@media (min-width: 1024px) { #ahyModal { max-width: 1024px; } }
+@media (min-width: 1280px) { #ahyModal { max-width: 1280px; } }
+@media (min-width: 1536px) { #ahyModal { max-width: 1536px; } }
+
+.fs-modal-shell > #ahyModal {
+    max-width: none;
+    margin-left: 0;
+    margin-right: 0;
+    padding-left: 0;
+    padding-right: 0;
+}
+
+/* Page takeover — hides the host page behind the modal. */
 body.ahy-search-open .page-main,
 body.ahy-search-open main,
 body.ahy-search-open #maincontent { display:none !important; }
 body.ahy-search-open .top-container { display:none !important; }
 body.ahy-search-open { background:#efeadd !important; }
-.ahy-filter-modal { z-index: 999999; }
+
+/* config-modal.phtml's fixed overlay. Its own .ahy-thumb-strip rules moved into
+   fs-components.css as .fs-cfg__thumbs when that template was converted. */
 .ahy-cfg-overlay { position:fixed; inset:0; z-index:999997; }
-.ahy-thumb-strip::-webkit-scrollbar { display:none; }
-.ahy-thumb-strip { -ms-overflow-style:none; scrollbar-width:none; }
-/* Mobile card: edge-to-edge below 640px, padded above */
-.ahy-mobile-card { margin-left:50%; width:100vw; transform:translateX(-50%); }
-@media (min-width:640px) {
-    .ahy-mobile-card { margin-left:auto; width:100%; transform:none; max-width:640px; }
-}
-/* ── Popular products carousel ────────────────────────────── */
-.pop-wrap{position:relative;}
-.pop-cards-row{display:flex;gap:12px;overflow-x:auto;scroll-snap-type:none;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding-bottom:4px;cursor:grab;user-select:none;}
-.pop-cards-row.is-dragging{cursor:grabbing;}
-.pop-cards-row::-webkit-scrollbar{display:none;}
-.pop-card{flex-shrink:0;width:calc(78% - 6px);scroll-snap-align:start;}
-.pop-nav-btn{position:absolute;top:50%;transform:translateY(-50%);width:52px;height:52px;border-radius:50%;background:rgba(100,100,100,0.75);border:none;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:10;}
-.pop-nav-btn-prev{left:12px;}
-.pop-nav-btn-next{right:12px;}
-
-
-.popular-searches-row{display:flex;flex-wrap:wrap;gap:10px;}
-@media(max-width:767px){
-    .pop-cards-row{scroll-snap-type:x mandatory;}
-    .ahy-filters{width: fit-content !important;}
-}
-@media(min-width:640px){.pop-card{width:calc(48% - 6px);}}
-@media(min-width:1024px){.pop-card{width:calc(25% - 9px);}}
-@media (min-width:1024px) {
-    .ahy-results-rederer {gap:3rem !important;}
-}
-    /* Everest GIF page loader */
-    .ahy-page-loader {
-        background: url(/media/icons/everest-loading-icon.gif) no-repeat center;
-        height: 100px;
-        width: 100px;
-        margin: 80px auto;
-        position: relative;
-    }
-    /* Products-area loader — scoped to the results row (filters + products
-       together), so a search/filter/sort fetch never blanks the whole screen
-       while the shopper is still typing. Positioned against the relative
-       #ahy-results-layout wrapper, sized to match it, and horizontally
-       centered across the full filters+products width. */
-    .ahy-products-loader-overlay {
-        position: absolute;
-        inset: 0;
-        z-index: 20;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        background-color: #efeadd;
-    }
 </style>

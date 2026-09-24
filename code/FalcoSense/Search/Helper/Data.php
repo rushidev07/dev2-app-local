@@ -19,6 +19,8 @@ class Data extends AbstractHelper
     public const MAX_SYNC_PRICE = 90000.0;
 
     private const XML_PATH_FRONTEND_ENABLED  = 'smart_search/general/frontend_enabled';
+
+    private const XML_PATH_HEADER_MOUNT = 'smart_search/general/header_mount';
     private const XML_PATH_ENABLED           = 'smart_search/general/enabled';
     private const XML_PATH_REALTIME_ENABLED  = 'smart_search/general/realtime_sync_enabled';
     private const XML_PATH_ENDPOINT_URL      = 'smart_search/general/endpoint_url';
@@ -51,6 +53,16 @@ class Data extends AbstractHelper
     // fetch() in results.phtml, which can afford to be slower).
     private const XML_PATH_PLP_TIMEOUT_MS = 'smart_search/plp/platform_timeout_ms';
 
+    /* Per-store presentation values the PLP components read off
+       window.FalcoSense.config. These were literals inside the templates —
+       Everest's sellers, Everest's placeholder image — which made the module
+       unusable on any other storefront without editing its source. */
+    private const XML_PATH_PLP_FREE_SHIPPING_SELLERS = 'smart_search/plp/free_shipping_sellers';
+    private const XML_PATH_PLP_DEFAULT_SELLER        = 'smart_search/plp/default_seller';
+    private const XML_PATH_PLP_FALLBACK_IMAGE        = 'smart_search/plp/fallback_image';
+    private const XML_PATH_PLP_CDN_BASE              = 'smart_search/plp/cdn_base';
+    private const XML_PATH_PLP_SCROLL_OFFSET         = 'smart_search/plp/scroll_offset';
+
     private ScopeConfigInterface $config;
     private WriterInterface $configWriter;
     private StoreManagerInterface $storeManager;
@@ -70,6 +82,26 @@ class Data extends AbstractHelper
     public function isFrontendEnabled(int|string|null $storeId = null): bool
     {
         return $this->config->isSetFlag(self::XML_PATH_FRONTEND_ENABLED, ScopeInterface::SCOPE_STORE, $storeId);
+    }
+
+    /**
+     * Which header block the search overlay mounts onto: 'hyva', 'luma' or 'none'.
+     *
+     * Read by Observer\AddLayoutHandles, which turns it into a layout handle. See
+     * Model\Config\Source\HeaderMount for why this is configured rather than
+     * detected.
+     */
+    public function getHeaderMount(int|string|null $storeId = null): string
+    {
+        $value = (string) $this->config->getValue(
+            self::XML_PATH_HEADER_MOUNT,
+            ScopeInterface::SCOPE_STORE,
+            $storeId
+        );
+
+        /* Empty on a store upgraded from a version without this setting — detect
+           rather than guess. */
+        return $value !== '' ? $value : \FalcoSense\Search\Model\Config\Source\HeaderMount::AUTO;
     }
 
     public function isEnabled(int|string|null $storeId = null): bool
@@ -102,6 +134,78 @@ class Data extends AbstractHelper
     {
         $val = (int) $this->config->getValue(self::XML_PATH_PLP_TIMEOUT_MS, ScopeInterface::SCOPE_STORE, $storeId);
         return $val > 0 ? $val : 500;
+    }
+
+    /**
+     * Sellers whose products display a "FREE Shipping" badge.
+     *
+     * Stored as a comma-separated list because the alternative — a repeatable
+     * admin row set — needs a backend model and a table, for a value most
+     * stores will set once and never revisit.
+     *
+     * @return string[]
+     */
+    public function getPlpFreeShippingSellers(int|string|null $storeId = null): array
+    {
+        $raw = (string) $this->config->getValue(
+            self::XML_PATH_PLP_FREE_SHIPPING_SELLERS,
+            ScopeInterface::SCOPE_STORE,
+            $storeId
+        );
+
+        if (trim($raw) === '') {
+            return [];
+        }
+
+        $sellers = array_map('trim', explode(',', $raw));
+
+        return array_values(array_filter($sellers, static fn (string $s): bool => $s !== ''));
+    }
+
+    public function getPlpDefaultSeller(int|string|null $storeId = null): string
+    {
+        return (string) $this->config->getValue(
+            self::XML_PATH_PLP_DEFAULT_SELLER,
+            ScopeInterface::SCOPE_STORE,
+            $storeId
+        );
+    }
+
+    /**
+     * Shown in place of a product image that is missing or fails to load.
+     *
+     * Empty is a valid answer — the components fall back to rendering nothing
+     * rather than a broken-image icon — but a store should set it.
+     */
+    public function getPlpFallbackImage(int|string|null $storeId = null): string
+    {
+        return (string) $this->config->getValue(
+            self::XML_PATH_PLP_FALLBACK_IMAGE,
+            ScopeInterface::SCOPE_STORE,
+            $storeId
+        );
+    }
+
+    public function getPlpCdnBase(int|string|null $storeId = null): string
+    {
+        return rtrim((string) $this->config->getValue(
+            self::XML_PATH_PLP_CDN_BASE,
+            ScopeInterface::SCOPE_STORE,
+            $storeId
+        ), '/');
+    }
+
+    /**
+     * Pixels to leave clear when scrolling results into view — a storefront with
+     * a sticky header needs the results to stop below it, not underneath it.
+     */
+    public function getPlpScrollOffset(int|string|null $storeId = null): int
+    {
+        return max(0, (int) $this->config->getValue(
+            self::XML_PATH_PLP_SCROLL_OFFSET,
+            ScopeInterface::SCOPE_STORE,
+            $storeId
+        ));
     }
 
     public function getEventsEndpointUrl(int|string|null $storeId = null): string

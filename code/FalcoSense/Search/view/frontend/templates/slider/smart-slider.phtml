@@ -93,9 +93,9 @@ if ($_isSliderBlock && !$itemCount) return;
     #<?= $sliderId ?> .msi-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; align-items: center; min-height: 55px; }
 </style>
 
-<section id="<?= $sliderId ?>" class="my-12">
+<section id="<?= $sliderId ?>" class="fs-root fs-slider">
 
-    <div class="flex items-center justify-between mb-6">
+    <div class="fs-slider__head">
         <h3 style="display:block;line-height:1;font-size:2rem;font-weight:800;color:#0d2f47;text-transform:uppercase;padding:10px 0;">
             <?= $escaper->escapeHtml($title) ?>
         </h3>
@@ -124,7 +124,7 @@ if ($_isSliderBlock && !$itemCount) return;
                 $imgSrcEsc    = $escaper->escapeUrl($image);
                 if ($isCfg && $inStock) $cfgProducts[$pIdx] = $product;
             ?>
-            <div class="kuRECSItem border border-ahy-bg swiper-slide">
+            <div class="kuRECSItem fs-slider__slide swiper-slide">
                 <div class="msi-card kuRECS-item">
 
                     <div class="msi-img-wrap kuRECS-itemImg">
@@ -136,9 +136,9 @@ if ($_isSliderBlock && !$itemCount) return;
                                      alt="<?= $escaper->escapeHtmlAttr($name) ?>"
                                      class="prodImg"
                                      loading="lazy"
-                                     onerror="if(this.dataset.fb){return;}this.dataset.fb='1';this.onerror=null;this.src='https://static.everest.com/media/.thumbswysiwyg/everest-logo_2_.png';this.style.opacity='0.45';">
+                                     onerror="if(this.dataset.fb){return;}this.dataset.fb='1';this.onerror=null;this.src=window.FalcoSense?FalcoSense.fallbackImage():'';this.style.opacity='0.45';">
                             <?php else: ?>
-                                <img src="https://static.everest.com/media/.thumbswysiwyg/everest-logo_2_.png"
+                                <img src="<?= $escaper->escapeUrl($block->getFallbackImage()) ?>"
                                      alt="<?= $escaper->escapeHtmlAttr($name) ?>"
                                      class="prodImg"
                                      loading="lazy"
@@ -146,9 +146,9 @@ if ($_isSliderBlock && !$itemCount) return;
                             <?php endif; ?>
                         </a>
 
-                        <button aria-label="Add to Wish List" type="button" class="msi-bookmark hidden md:flex"
+                        <button aria-label="Add to Wish List" type="button" class="msi-bookmark fs-md-flex"
                                 x-data="initWishlist()" @click.prevent="addToWishlist(<?= $productId ?>)">
-                            <svg class="w-5 h-5" data-name="Layer 1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 15.91 20">
+                            <svg class="fs-icon fs-icon--lg" data-name="Layer 1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 15.91 20">
                                 <path style="fill:#0d2f47;" d="M14.41,1.5v16L9.27,12.71a1.62,1.62,0,0,0-2.19,0L1.5,17.58V1.5H14.41M14.76,0H1.15A1.16,1.16,0,0,0,0,1.15v18.1a.74.74,0,0,0,1.24.56l6.83-6a.12.12,0,0,1,.18,0l6.38,5.9a.74.74,0,0,0,.52.21.76.76,0,0,0,.76-.77v-18A1.15,1.15,0,0,0,14.76,0Z"/>
                             </svg>
                         </button>
@@ -168,7 +168,7 @@ if ($_isSliderBlock && !$itemCount) return;
                             </div>
                             <div class="kuRECS-itemPrice" style="font-size:12px;color:#545454;margin:4px 0;">
                                 <div class="msi-price-wrap kuPrice">
-                                    <div class="kuSalePrice kuStartPrice flex" style="font-size:1.5rem;align-items:baseline;gap:4px;">
+                                    <div class="kuSalePrice kuStartPrice fs-row" style="font-size:1.5rem;align-items:baseline;gap:4px;">
                                         <?php if ($isCfg): ?>
                                             <div class="msi-from">from</div>
                                         <?php endif; ?>
@@ -189,26 +189,26 @@ if ($_isSliderBlock && !$itemCount) return;
                                             data-product-id="<?= $productId ?>"
                                             data-atc-url="<?= $escaper->escapeHtmlAttr($addToCartUrl) ?>">
                                         <?php if ($addToCartIconUrl): ?>
-                                        <img src="<?= $escaper->escapeUrl($addToCartIconUrl) ?>" alt="" class="w-5 h-5 object-contain" />
+                                        <img src="<?= $escaper->escapeUrl($addToCartIconUrl) ?>" alt="" class="fs-icon fs-icon--lg fs-icon--contain" />
                                         <?php else: ?>
-                                        <svg class="w-5 h-5" data-name="Layer 1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 30.61 25.71">
+                                        <svg class="fs-icon fs-icon--lg" data-name="Layer 1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 30.61 25.71">
                                             <polyline style="fill:none;stroke:<?= $addToCartFg ?>;stroke-linecap:round;stroke-linejoin:round;stroke-width:2.5;" points="0.75 0.75 5.51 0.75 10.82 15.88 25.24 15.88 29.86 3.3 10.84 3.3"></polyline>
                                             <circle style="fill:none;stroke:<?= $addToCartFg ?>;stroke-miterlimit:10;stroke-width:2.5;" cx="11.98" cy="22.46" r="2.5"></circle>
                                             <circle style="fill:none;stroke:<?= $addToCartFg ?>;stroke-miterlimit:10;stroke-width:2.5;" cx="24.48" cy="22.46" r="2.5"></circle>
                                         </svg>
                                         <?php endif; ?>
-                                        <span class="px-2"><?= $escaper->escapeHtml($addToCartLabel) ?></span>
+                                        <span class="fs-slider__pad"><?= $escaper->escapeHtml($addToCartLabel) ?></span>
                                     </button>
                                 <?php elseif ($inStock && $isCfg): ?>
                                     <button type="button" class="msi-btn kuBtnDark kuLandingAddToCartBtn"
                                             data-cfg-pid="<?= $productId ?>"
                                             data-slider-id="<?= $escaper->escapeHtmlAttr($sliderId) ?>"
                                             onclick="ahySliderOpenModal(this)">
-                                        <span class="px-2"><?= $escaper->escapeHtml($addToCartOptionsLabel) ?></span>
+                                        <span class="fs-slider__pad"><?= $escaper->escapeHtml($addToCartOptionsLabel) ?></span>
                                     </button>
                                 <?php else: ?>
                                     <a href="<?= $escaper->escapeUrl($productUrl) ?>" class="msi-btn kuBtnDark">
-                                        <span class="px-2">details</span>
+                                        <span class="fs-slider__pad">details</span>
                                     </a>
                                 <?php endif; ?>
                             </div>
@@ -314,65 +314,65 @@ if (typeof ahySliderOpenModal === 'undefined') {
 <div x-data="ahyConfigModal()"
      x-show="open"
      x-cloak
-     class="fixed inset-0"
+     class="fs-root fs-panel"
      style="z-index: 999999"
      @keydown.escape.window="close()">
-    <div class="absolute inset-0 bg-black/50" @click="close()"></div>
-    <div class="absolute inset-y-0 right-0 w-full max-w-md bg-white shadow-2xl flex flex-col overflow-y-auto" @click.stop>
-        <div class="flex items-start justify-between p-5 border-b border-gray-100">
-            <div class="pr-4">
-                <h3 class="text-xl font-bold text-ahy-blue leading-snug" x-html="product.name"></h3>
-                <p class="text-sm text-gray-500 mt-1" x-text="'Sold And Shipped By ' + (product.brand || 'The Everest Marketplace')"></p>
+    <div class="fs-slideover__scrim" @click="close()"></div>
+    <div class="fs-panel__sheet" @click.stop>
+        <div class="fs-cfg__head fs-cfg__head--ruled">
+            <div class="fs-cfg__head-text">
+                <h3 class="fs-cfg__title fs-cfg__title--brand" x-html="product.name"></h3>
+                <p class="fs-cfg__subtitle fs-cfg__subtitle--loose" x-show="FalcoSense.soldBy(product.brand, 'Sold And Shipped By')" x-text="FalcoSense.soldBy(product.brand, 'Sold And Shipped By')"></p>
             </div>
-            <button @click="close()" class="text-gray-400 hover:text-gray-600 flex-shrink-0 mt-1">
-                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <button @click="close()" class="fs-cfg__close fs-cfg__close--plain">
+                <svg class="fs-icon fs-icon--xl" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
                 </svg>
             </button>
         </div>
-        <div class="flex gap-3 p-4 border-b border-gray-100">
-            <div class="flex flex-col gap-2 w-16 shrink-0 overflow-y-auto" style="max-height:340px;scrollbar-width:none;-ms-overflow-style:none;" x-ref="thumbList">
+        <div class="fs-cfg__gallery fs-cfg__gallery--ruled">
+            <div class="fs-cfg__thumbs" style="max-height:340px;scrollbar-width:none;-ms-overflow-style:none;" x-ref="thumbList">
                 <template x-for="img in galleryImages" :key="img">
                     <button @click="activeImage = img"
-                            class="w-16 h-16 border-2 rounded-lg overflow-hidden flex-shrink-0 transition-colors"
+                            class="fs-cfg__thumb fs-cfg__thumb--flat"
                             :class="activeImage === img ? 'border-ahy-blue' : 'border-gray-200'">
-                        <img :src="img" class="w-full h-full object-cover"
+                        <img :src="img" class="fs-cfg__thumb-img fs-cfg__thumb-img--cover"
                              :style="{ opacity: isFallbackImg(img) ? 0.45 : 1 }"
                              @error="$event.target.src=FALLBACK_IMG; $event.target.style.opacity='0.45'"/>
                     </button>
                 </template>
             </div>
             <style>div[x-ref=thumbList]::-webkit-scrollbar{display:none}</style>
-            <div class="relative flex-1 bg-gray-50 rounded-xl overflow-hidden" style="min-height:220px;max-height:340px">
+            <div class="fs-cfg__stage fs-cfg__stage--clip" style="min-height:220px;max-height:340px">
                 <img :src="activeImage || cdnImg(product.image)" :alt="product.name"
-                     class="w-full h-full object-contain"
+                     class="fs-cfg__thumb-img"
                      :style="{ opacity: isFallbackImg(activeImage || product.image) ? 0.45 : 1 }"
                      @error="$event.target.src=FALLBACK_IMG; $event.target.style.opacity='0.45'"/>
             </div>
         </div>
-        <div class="flex-1 p-5">
-            <div class="mb-3">
-                <div class="flex items-baseline gap-1.5">
-                    <span class="text-3xl font-extrabold text-gray-900" x-html="hyva.formatPrice(displayPrice)"></span>
+        <div class="fs-cfg__body fs-cfg__body--padded">
+            <div class="fs-mb-3">
+                <div class="fs-row--baseline-tight">
+                    <span class="fs-cfg__price fs-cfg__price--dark" x-html="hyva.formatPrice(displayPrice)"></span>
                     <template x-if="displayOriginal">
-                        <span class="text-base font-medium text-gray-400 line-through" x-html="hyva.formatPrice(displayOriginal)"></span>
+                        <span class="fs-cfg__price-was fs-cfg__price-was--base" x-html="hyva.formatPrice(displayOriginal)"></span>
                     </template>
                 </div>
             </div>
-            <a href="/shipping-returns" class="text-ahy-blue text-sm underline font-semibold mb-5 inline-block">Shipping &amp; Returns</a>
-            <div class="mb-4">
+            <a href="/shipping-returns" class="fs-cfg__link fs-cfg__link--below">Shipping &amp; Returns</a>
+            <div class="fs-mb-4">
                 <template x-if="attrsLoaded && attrGroups().length > 0">
                     <div>
                         <template x-for="group in attrGroups()" :key="group.name">
-                            <div class="mb-4">
-                                <p class="text-sm font-bold text-gray-700 mb-2">
+                            <div class="fs-mb-4">
+                                <p class="fs-cfg__label fs-cfg__label--bold">
                                     <span x-text="group.name + ':'"></span>
-                                    <span class="font-semibold text-ahy-blue ml-1" x-text="selectedAttrs[group.name] || 'Select an option'"></span>
+                                    <span class="fs-link fs-link--inline" x-text="selectedAttrs[group.name] || 'Select an option'"></span>
                                 </p>
-                                <div class="flex flex-wrap gap-2">
+                                <div class="fs-row fs-row--wrap">
                                     <template x-for="val in group.values" :key="val">
                                         <button @click="selectAttr(group.name, val)"
-                                                class="px-4 py-2 rounded-lg border-2 text-sm font-semibold transition-all cursor-pointer"
+                                                class="fs-cfg__swatch fs-cfg__swatch--semibold"
                                                 :class="isAttrSelected(group.name, val) ? 'border-ahy-blue text-ahy-blue bg-white' : 'border-gray-200 text-gray-700 hover:border-ahy-blue'">
                                             <span x-text="val"></span>
                                         </button>
@@ -383,10 +383,10 @@ if (typeof ahySliderOpenModal === 'undefined') {
                     </div>
                 </template>
                 <template x-if="!attrsLoaded || attrGroups().length === 0">
-                    <div class="flex flex-wrap gap-2">
+                    <div class="fs-row fs-row--wrap">
                         <template x-for="v in product.variants" :key="v.variant_id">
                             <button @click="selectVariant(v)" :disabled="!v.in_stock"
-                                    class="px-4 py-2 rounded-lg border-2 text-sm font-semibold transition-all"
+                                    class="fs-cfg__swatch fs-cfg__swatch--semibold"
                                     :class="{
                                         'border-ahy-blue text-ahy-blue bg-white': selected && selected.variant_id === v.variant_id,
                                         'border-gray-200 text-gray-700 hover:border-ahy-blue': !selected || selected.variant_id !== v.variant_id,
@@ -399,12 +399,12 @@ if (typeof ahySliderOpenModal === 'undefined') {
                     </div>
                 </template>
             </div>
-            <p x-show="error" class="text-sm text-red-500 font-semibold" x-text="error"></p>
+            <p x-show="error" class="fs-cfg__save fs-cfg__save--alt" x-text="error"></p>
         </div>
-        <div class="p-4 border-t border-gray-100">
+        <div class="fs-cfg__footer fs-cfg__footer--ruled">
             <button @click="addToCart()" :disabled="adding"
-                    class="w-full py-4 rounded-full bg-ahy-red text-white font-bold text-sm uppercase tracking-widest hover:opacity-90 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    class="fs-cfg__submit fs-cfg__submit--sale">
+                <svg class="fs-icon fs-icon--lg" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/>
                 </svg>
                 <span x-text="adding ? 'Adding…' : 'Add to Cart'"></span>
@@ -418,7 +418,7 @@ if (typeof ahyConfigModal === 'undefined') {
     function ahyConfigModal() {
         return {
             open: false, product: { variants: [] }, selected: null, adding: false, error: '', activeImage: '', galleryImages: [], variantAttrs: {}, attrsLoaded: false, selectedAttrs: {},
-            FALLBACK_IMG: 'https://static.everest.com/media/.thumbswysiwyg/everest-logo_2_.png',
+            FALLBACK_IMG: ((window.FalcoSense && window.FalcoSense.config && window.FalcoSense.config.fallbackImage) || ''),
             isFallbackImg(path) {
                 return this.cdnImg(path) === this.FALLBACK_IMG;
             },

@@ -19,36 +19,35 @@ $renderSsrCard = function (\FalcoSense\Search\Model\Plp\PlpItem $item) use ($blo
     $href = $block->escapeUrl($url);
     $name = $block->escapeHtml($item->name);
     $img = $block->escapeUrl($item->imageUrl);
-    $seller = $block->escapeHtml($item->brand ?: 'The Everest Marketplace');
+    $seller = $block->escapeHtml($item->brand ?: $block->getDefaultSeller());
 
     if ($item->price !== null && $item->hasDiscount()) {
-        $priceHtml = '<div class="text-ahy-red text-xs font-bold uppercase">Deal</div>'
-            . '<div class="flex items-baseline gap-2">'
-            . '<span class="text-2xl font-extrabold text-ahy-blue">' . $fmtPrice($item->specialPrice) . '</span>'
-            . '<span class="text-sm text-gray-400 line-through">' . $fmtPrice($item->price) . '</span>'
+        $priceHtml = '<div class="fs-card__deal-label">Deal</div>'
+            . '<div class="fs-card__price-row">'
+            . '<span class="fs-card__price-current">' . $fmtPrice($item->specialPrice) . '</span>'
+            . '<span class="fs-card__price-was">' . $fmtPrice($item->price) . '</span>'
             . '</div>';
     } elseif ($item->price !== null) {
         $fromLabel = $item->isConfigurable()
-            ? '<span class="capitalize text-ahy-red !font-bold !text-sm">From</span>'
+            ? '<span class="fs-card__price-from">From</span>'
             : '';
-        $priceHtml = '<div class="flex flex-col items-baseline">' . $fromLabel
-            . '<span class="text-2xl font-extrabold text-ahy-blue">' . $fmtPrice($item->price) . '</span></div>';
+        $priceHtml = '<div class="fs-card__price-col">' . $fromLabel
+            . '<span class="fs-card__price-current">' . $fmtPrice($item->price) . '</span></div>';
     } else {
-        $priceHtml = '<span class="capitalize !flex justify-center items-center w-full !rounded-full '
-            . '!bg-transparent !text-ahy-blue !text-sm !py-1.5 !px-2.5 font-bold !border-2 !border-ahy-blue">'
+        $priceHtml = '<span class="fs-card__options-btn">'
             . 'See Options</span>';
     }
 
-    return '<div class="bg-white relative flex flex-col group" '
+    return '<div class="fs-card" '
         . 'style="border-radius:var(--ahy-card-radius);border:var(--ahy-card-border);box-shadow:var(--ahy-card-shadow);">'
-        . '<a href="' . $href . '" class="block overflow-hidden">'
+        . '<a href="' . $href . '" class="fs-card__media">'
         . '<img src="' . $img . '" alt="' . $name . '" width="244" height="244" loading="eager" '
-        . 'class="w-full object-contain object-center p-3" style="max-width:244px;height:244px;margin:0 auto;display:block" />'
+        . 'class="fs-card__image" />'
         . '</a>'
-        . '<div class="flex flex-col flex-1 px-6 pb-4">'
-        . '<a href="' . $href . '" class="line-clamp-2 !text-lg !font-extrabold text-ahy-blue leading-normal mt-1 h-[3.4rem]" title="' . $name . '">' . $name . '</a>'
-        . '<p class="text-xs text-gray-500 mt-1">Sold By ' . $seller . '</p>'
-        . '<div class="AhyPrice min-h-[5.5rem] flex flex-col !overflow-visible mt-1">' . $priceHtml . '</div>'
+        . '<div class="fs-card__body fs-card__body--roomy">'
+        . '<a href="' . $href . '" class="fs-card__title" title="' . $name . '">' . $name . '</a>'
+        . '<p class="fs-card__seller">Sold By ' . $seller . '</p>'
+        . '<div class="fs-card__price">' . $priceHtml . '</div>'
         . '</div></div>';
 };
 ?>
@@ -77,10 +76,10 @@ var _ahyCatInit = {
     The aside is empty (no filter options exist server-side to render), but
     still needs to occupy the same width so the grid column doesn't jump.
 -->
-<div id="fs-ssr-grid" class="flex px-4 md:pr-0 lg:pl-6 pt-0 pb-12 ahy-filter-layout">
-    <aside class="hidden md:block ahy-filter-sidebar" aria-hidden="true"></aside>
-    <div class="flex-1 min-w-0">
-        <div class="grid grid-cols-2 xl:grid-cols-3 ahy-product-grid" style="gap:var(--ahy-grid-gap);">
+<div id="fs-ssr-grid" class="fs-root fs-plp-layout">
+    <aside class="fs-plp-sidebar" aria-hidden="true"></aside>
+    <div class="fs-plp-main">
+        <div class="fs-plp-grid" style="gap:var(--ahy-grid-gap);">
             <?php foreach ($plpResult->items as $item): ?>
                 <?= /* @noEscape */ $renderSsrCard($item) ?>
             <?php endforeach; ?>
@@ -90,47 +89,70 @@ var _ahyCatInit = {
 <script type="application/json" id="fs-ssr-payload"><?= /* @noEscape */ json_encode($plpResult->toArray(), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?></script>
 <?php endif; ?>
 
-<div
+<!--
+    .fs-root is the isolation boundary — see fs-base.css. Everything inside gets
+    `all: unset`, so the host theme cannot style FalcoSense's markup and
+    FalcoSense's CSS cannot escape into the host page.
+-->
+<div class="fs-root"
     x-data="ahyCategoryResults(_ahyCatInit.url, _ahyCatInit.token, _ahyCatInit.category, _ahyCatInit.storeId, _ahyCatInit.categoryId)"
     x-init="init()"
-    x-effect="(() => { let m = document.querySelector('.column.main'); if (m) m.style.setProperty('min-height', loading ? '4500px' : 'auto', 'important'); })()"
+    <?php /*
+        Reserve height on OUR OWN root while loading, not on the host's
+        .column.main.
+
+        The purpose is unchanged: when the grid empties during a fetch the page
+        collapses, the browser clamps the scroll position, and the shopper is
+        thrown to the top. Holding a minimum height keeps the scroll anchored.
+
+        What changed is where. This used to reach out with
+        document.querySelector('.column.main') and write an !important inline
+        style onto a host element — a write the host never asked for, on a
+        selector that only exists in Magento's default layouts. Binding a class
+        on our own root achieves the same thing and touches nothing we do not own.
+
+        The height itself is now --fs-plp-loading-min-height (see fs-tokens.css),
+        because 4500px is tuned to Everest's row height and is meaningless
+        elsewhere.
+    */ ?>
+    :class="loading ? 'is-loading' : ''"
     x-cloak
-    class="w-full"
+    class="fs-w-full"
 >
 
-    <div class="md:hidden bg-ahy-bg border-b border-gray-300" x-show="!loading && results.length > 0"
+    <div class="fs-plp-mobilebar fs-mobile-only" x-show="!loading && !error && results.length > 0"
          x-data="{ showMobileFilter: false }" 
          x-effect="document.body.style.overflow = showMobileFilter ? 'hidden' : ''">
 
-        <div class="ahy-filters-menu relative z-10 flex justify-between md:items-center gap-3 px-4 py-3">
+        <div class="fs-plp-mobilebar__row">
             <button @click="showMobileFilter = true"
-                    class="ahy-filters shrink-0 border-2 border-ahy-blue text-ahy-blue uppercase text-xs tracking-widest font-bold py-3 px-4 rounded-full transition duration-300 ease-in-out">
+                    class="fs-plp-filter-btn">
                 Filter By
             </button>
 
-            <div x-data="{ open: false }" class="ahy-sort relative flex items-center gap-1 text-sm text-ahy-blue">
+            <div x-data="{ open: false }" class="fs-plp-sort">
                 <span>Sort by:</span>
-                <button @click="open = !open" class="font-bold flex items-center gap-1">
-                    <span x-text="sortLabel()" class="line-clamp-1"></span>
-                    <svg class="w-4 h-4 transition-transform" :class="open ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <button @click="open = !open" class="fs-sort__btn fs-sort__btn--plain">
+                    <span x-text="sortLabel()" class="fs-truncate"></span>
+                    <svg class="fs-chevron" :class="open ? 'is-open' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
                     </svg>
                 </button>
                 <div x-show="open" @click.outside="open = false"
-                     class="absolute right-0 top-full bg-white border border-gray-200 rounded-xl shadow-lg z-50 w-52 py-1">
-                    <button @click="setSort('relevance'); open = false" class="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50" :class="sort === 'relevance' ? 'font-bold text-ahy-blue' : ''">Relevance</button>
-                    <button @click="setSort('price_asc'); open = false" class="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50" :class="sort === 'price_asc' ? 'font-bold text-ahy-blue' : ''">Price: Low to High</button>
-                    <button @click="setSort('price_desc'); open = false" class="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50" :class="sort === 'price_desc' ? 'font-bold text-ahy-blue' : ''">Price: High to Low</button>
+                     class="fs-menu fs-menu--below">
+                    <button @click="setSort('relevance'); open = false" class="fs-menu__item" :class="sort === 'relevance' ? 'is-active' : ''">Relevance</button>
+                    <button @click="setSort('price_asc'); open = false" class="fs-menu__item" :class="sort === 'price_asc' ? 'is-active' : ''">Price: Low to High</button>
+                    <button @click="setSort('price_desc'); open = false" class="fs-menu__item" :class="sort === 'price_desc' ? 'is-active' : ''">Price: High to Low</button>
                 </div>
             </div>
         </div>
 
-        <div class="border-t border-gray-200 py-1.5 text-center text-xs font-semibold text-ahy-blue md:block hidden" x-show="total > 0">
+        <div class="fs-plp-footnote" x-show="!error && total > 0">
             (<span x-text="total"></span> Items)
         </div>
 
         <template x-teleport="body">
-        <div class="fixed inset-0 overflow-hidden z-[500]" x-show="showMobileFilter" x-cloak>
+        <div class="fs-slideover" x-show="showMobileFilter" x-cloak>
             <div x-show="showMobileFilter"
                  x-transition:enter="ease-in-out duration-300"
                  x-transition:enter-start="opacity-0"
@@ -139,9 +161,9 @@ var _ahyCatInit = {
                  x-transition:leave-start="opacity-100"
                  x-transition:leave-end="opacity-0"
                  @click="showMobileFilter = false"
-                 class="absolute inset-0 bg-black/50"></div>
+                 class="fs-slideover__scrim"></div>
 
-            <div class="fixed inset-y-0 right-0 flex max-w-full pl-10">
+            <div class="fs-slideover__rail">
                 <div x-show="showMobileFilter"
                      x-transition:enter="transform transition ease-in-out duration-300"
                      x-transition:enter-start="translate-x-full"
@@ -150,24 +172,24 @@ var _ahyCatInit = {
                      x-transition:leave-start="translate-x-0"
                      x-transition:leave-end="translate-x-full"
                      @keydown.escape.window="showMobileFilter = false"
-                     class="relative w-screen max-w-[769px] h-full bg-white overflow-y-auto flex flex-col shadow-xl">
+                     class="fs-slideover__panel">
 
-            <div class="px-4 pt-4 sticky top-0 bg-white z-10">
-                <div class="flex justify-end">
+            <div class="fs-slideover__head">
+                <div class="fs-slideover__close-row">
                     <button @click="showMobileFilter = false"
-                            class="w-8 h-8 flex items-center justify-center text-gray-500 text-xl leading-none">&#x2715;</button>
+                            class="fs-drawer__close">&#x2715;</button>
                 </div>
-                <div class="flex items-center justify-between pb-4">
-                    <button @click="clearAllFilters()" class="text-sm font-semibold text-ahy-blue">Reset</button>
-                    <button @click="showMobileFilter = false" class="text-sm font-semibold text-ahy-blue">Apply</button>
+                <div class="fs-slideover__title-row">
+                    <button @click="clearAllFilters()" class="fs-sidebar__count-text">Reset</button>
+                    <button @click="showMobileFilter = false" class="fs-sidebar__count-text">Apply</button>
                 </div>
             </div>
 
-            <div x-show="total > 0" class="pb-3 mb-4 border-b-4 border-ahy-blue" style="margin-inline: 20px">
-                <span class="text-sm font-semibold text-ahy-blue" x-text="'(' + total + ' Items)'"></span>
+            <div x-show="!error && total > 0" class="fs-plp-count fs-plp-count--tight" style="margin-inline: 20px">
+                <span class="fs-sidebar__count-text" x-text="'(' + total + ' Items)'"></span>
             </div>
 
-            <div class="flex-1 px-4 py-2">
+            <div class="fs-slideover__body">
 
                 <?= /* @noEscape */ $block->getChildHtml('filters_mobile') ?>
             </div>
@@ -177,20 +199,20 @@ var _ahyCatInit = {
         </template>
     </div>
 
-    <div id="category-results-layout" class="flex px-4 md:pr-0 lg:pl-6 pt-0 pb-12 ahy-filter-layout">
+    <div id="category-results-layout" class="fs-plp-layout">
 
         <!-- Initial page load: normal inline loader (no overlay) -->
-        <div x-show="loading" x-cloak class="w-full flex justify-center">
-            <div class="ahy-page-loader"></div>
+        <div x-show="loading" x-cloak class="fs-loader-wrap">
+            <div class="fs-loader"></div>
         </div>
 
         <!-- Modal loader — white blurred backdrop, shown only while paginating -->
-        <div x-show="paginationLoading" x-cloak class="ahy-modal-loader-overlay">
-            <div class="ahy-page-loader" style="margin:0;"></div>
+        <div x-show="paginationLoading" x-cloak class="fs-loader-overlay">
+            <div class="fs-loader" style="margin:0;"></div>
         </div>
 
 
-        <aside class="hidden md:block ahy-filter-sidebar" x-show="results.length > 0">
+        <aside class="fs-plp-sidebar" x-show="results.length > 0">
             <div class="">
 
                 <!-- SKELETON COMMENTED OUT — replaced by Everest GIF loader above
@@ -214,34 +236,34 @@ var _ahyCatInit = {
                 </div>
                 END SKELETON -->
 
-                <div x-show="!loading && results.length > 0">
+                <div x-show="!loading && !error && results.length > 0">
 
-                    <div class="pb-3 mb-6 border-b-4 border-ahy-blue">
-                        <span class="text-sm font-semibold text-ahy-blue">
+                    <div class="fs-plp-count">
+                        <span class="fs-sidebar__count-text">
                             (<span x-text="total"></span> Items)
                         </span>
                     </div>
 
-                    <div x-show="activeFilters.length > 0 || activePriceMin !== '' || activePriceMax !== ''" class="mb-4">
-                        <div class="flex items-center justify-between mb-3">
-                            <span class="font-bold text-ahy-blue ahy-filter-title">Filter By</span>
-                            <button class="text-xs font-semibold text-ahy-blue" @click="clearAllFilters()">Clear all</button>
+                    <div x-show="activeFilters.length > 0 || activePriceMin !== '' || activePriceMax !== ''" class="fs-plp-chips-wrap">
+                        <div class="fs-filter-group__toggle">
+                            <span class="fs-plp-filter-title">Filter By</span>
+                            <button class="fs-clear-all-btn" @click="clearAllFilters()">Clear all</button>
                         </div>
-                        <div class="flex flex-wrap gap-2">
+                        <div class="fs-chips">
                             <template x-for="f in activeFilters" :key="f.key + f.value">
-                                <span class="ahy-filter-chip inline-flex items-center gap-1.5 bg-white text-ahy-blue text-xs px-3 py-1.5 rounded-full cursor-pointer border border-gray-300"
+                                <span class="fs-plp-chip"
                                       @click="removeFilter(f.key, f.value)">
                                     <span x-text="f.value"></span>
-                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <svg class="fs-chevron--sm" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
                                     </svg>
                                 </span>
                             </template>
                             <template x-if="activePriceMin !== '' || activePriceMax !== ''">
-                                <span class="ahy-filter-chip inline-flex items-center gap-1.5 bg-white text-ahy-blue text-xs px-3 py-1.5 rounded-full cursor-pointer border border-gray-300"
+                                <span class="fs-plp-chip"
                                       @click="clearPriceFilter()">
                                     <span x-text="'Price: ' + (activePriceMin !== '' ? '$' + activePriceMin : '') + (activePriceMin !== '' && activePriceMax !== '' ? ' – ' : '') + (activePriceMax !== '' ? '$' + activePriceMax : '')"></span>
-                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <svg class="fs-chevron--sm" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
                                     </svg>
                                 </span>
@@ -249,7 +271,7 @@ var _ahyCatInit = {
                         </div>
                     </div>
 
-                    <div class="space-y-0" x-show="filters.length > 0 || priceRange.min !== null">
+                    <div class="fs-filter-stack" x-show="filters.length > 0 || priceRange.min !== null">
 
                         <?= /* @noEscape */ $block->getChildHtml('filters_desktop') ?>
                     </div>
@@ -257,27 +279,27 @@ var _ahyCatInit = {
             </div>
         </aside>
 
-        <div class="flex-1 min-w-0">
+        <div class="fs-plp-main">
 
-            <div class="hidden md:flex items-center justify-end mb-5" x-show="!loading && results.length > 0">
-                <div x-data="{ open: false }" class="relative flex items-center gap-1 text-sm text-ahy-blue">
+            <div class="fs-sortbar" x-show="!loading && !error && results.length > 0">
+                <div x-data="{ open: false }" class="fs-sort">
                     <span>Sort by:</span>
-                    <button @click="open = !open" class="font-bold flex items-center gap-1 ml-1">
+                    <button @click="open = !open" class="fs-sort__btn">
                         <span x-text="sortLabel()"></span>
-                        <svg class="w-4 h-4 transition-transform" :class="open ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg class="fs-chevron" :class="open ? 'is-open' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
                         </svg>
                     </button>
                     <div x-show="open" @click.outside="open = false"
-                         class="absolute right-0 top-8 bg-white border border-gray-200 rounded-xl shadow-lg z-50 w-52 py-1">
-                        <button @click="setSort('relevance'); open = false" class="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50" :class="sort === 'relevance' ? 'font-bold text-ahy-blue' : ''">Relevance</button>
-                        <button @click="setSort('price_asc'); open = false" class="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50" :class="sort === 'price_asc' ? 'font-bold text-ahy-blue' : ''">Price: Low to High</button>
-                        <button @click="setSort('price_desc'); open = false" class="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50" :class="sort === 'price_desc' ? 'font-bold text-ahy-blue' : ''">Price: High to Low</button>
+                         class="fs-menu">
+                        <button @click="setSort('relevance'); open = false" class="fs-menu__item" :class="sort === 'relevance' ? 'is-active' : ''">Relevance</button>
+                        <button @click="setSort('price_asc'); open = false" class="fs-menu__item" :class="sort === 'price_asc' ? 'is-active' : ''">Price: Low to High</button>
+                        <button @click="setSort('price_desc'); open = false" class="fs-menu__item" :class="sort === 'price_desc' ? 'is-active' : ''">Price: High to Low</button>
                     </div>
                 </div>
             </div>
 
-            <div class="hidden text-sm font-semibold text-ahy-blue px-1 mb-3" x-show="!loading && results.length > 0">
+            <div class="fs-hidden" x-show="!loading && !error && results.length > 0">
                 (<span x-text="total"></span> Items)
             </div>
 
@@ -290,7 +312,7 @@ var _ahyCatInit = {
                         min-height: 1900px;
                     }
                 </style>
-                <div class="hidden md:grid grid-cols-2 xl:grid-cols-3 ahy-product-grid" style="gap:var(--ahy-grid-gap);">
+                <div class="fs-grid" style="gap:var(--ahy-grid-gap);">
                     <template x-for="i in 9" :key="i">
                         <div class="bg-white flex flex-col overflow-hidden">
                             <div class="cat-skel w-full" style="height:244px"></div>
@@ -307,7 +329,7 @@ var _ahyCatInit = {
                         </div>
                     </template>
                 </div>
-                <div class="md:hidden flex flex-col ahy-product-grid" style="gap:var(--ahy-grid-gap);">
+                <div class="fs-grid--mobile" style="gap:var(--ahy-grid-gap);">
                     <template x-for="i in 6" :key="i">
                         <div class="bg-white flex gap-3 p-3 ahy-mobile-card">
                             <div class="cat-skel shrink-0" style="width:128px;height:128px"></div>
@@ -330,41 +352,77 @@ var _ahyCatInit = {
             </div>
             END SKELETON -->
 
+            <?php /*
+    Search-unavailable state.
+
+    Distinct from the zero-results panel below on purpose. Both used to render
+    the same screen, because both leave `results` empty — so a platform outage
+    told the shopper "no matches were found", and a failure while filtering left
+    the previous products on screen as though the filter had applied.
+
+    Shown only when the last fetch actually failed; zero-results now hides itself
+    in that case. See the `error` flag in web/js/plp/search-results.js.
+*/ ?>
+<div x-show="!loading && error" x-cloak class="fs-noresults" style="max-width:640px">
+    <?php /*
+        Wording is deliberately neutral and runs through __() so each storefront
+        can set its own.
+
+        An earlier draft said "this is a problem on our side, not with your
+        search". Accurate, but the shopper does not know FalcoSense exists — they
+        read it as the SHOP admitting fault, on the merchant's brand rather than
+        ours. The only two things a shopper needs here are that it is not their
+        mistake and that they can retry.
+
+        Translated rather than hardcoded so a store changes the copy through
+        i18n/en_US.csv instead of editing the module.
+    */ ?>
+    <div class="fs-noresults__heading"><?= $block->escapeHtml(__('Something went wrong')) ?></div>
+    <p class="fs-noresults__lead">
+        <?= $block->escapeHtml(__("We couldn't load results just now. Please try again.")) ?>
+    </p>
+    <div style="text-align:center">
+        <button type="button" class="fs-btn fs-btn--outline" @click="error = false; fetch()">
+            <?= $block->escapeHtml(__('Try again')) ?>
+        </button>
+    </div>
+</div>
+
             <?= /* @noEscape */ $block->getChildHtml('zero_results') ?>
 
-            <div x-show="!loading && results.length > 0"
-                 class="hidden md:grid grid-cols-2 xl:grid-cols-3 ahy-product-grid" style="gap:var(--ahy-grid-gap);">
+            <div x-show="!loading && !error && results.length > 0"
+                 class="fs-grid" style="gap:var(--ahy-grid-gap);">
                 <template x-for="(product, index) in sortedResults()" :key="product.sku || product.product_id">
                     <?= /* @noEscape */ $block->getChildHtml('product_card_desktop') ?>
                 </template>
             </div>
 
-            <div x-show="!loading && results.length > 0" class="md:hidden flex flex-col ahy-product-grid" style="gap:var(--ahy-grid-gap);">
+            <div x-show="!loading && !error && results.length > 0" class="fs-grid--mobile" style="gap:var(--ahy-grid-gap);">
                 <template x-for="(product, index) in sortedResults()" :key="'m-' + (product.sku || product.product_id)">
                     <?= /* @noEscape */ $block->getChildHtml('product_card_mobile') ?>
                 </template>
             </div>
 
-            <div x-show="!loading && results.length > 0 && totalPages > 1" class="flex justify-center items-center gap-8 pt-10 pb-4">
+            <div x-show="!loading && !error && results.length > 0 && totalPages > 1" class="fs-pager">
                 <button aria-label="Previous" :disabled="page <= 1"
                         @click="page > 1 && goToPage(page - 1)"
-                        class="bg-white shadow-lg rounded-full w-12 h-12 flex items-center justify-center border border-gray-200"
-                        :class="page <= 1 ? 'opacity-30 cursor-not-allowed' : 'hover:border-ahy-blue'">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+                        class="fs-pager__btn"
+                        :class="page <= 1 ? 'is-disabled' : ''">
+                    <svg class="fs-icon fs-icon--lg" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
                 </button>
 
-                <div x-data="{ open: false }" class="relative">
-                    <button @click="open = !open" class="font-bold text-ahy-blue flex items-center gap-1">
+                <div x-data="{ open: false }" class="fs-pager__pages">
+                    <button @click="open = !open" class="fs-sort__btn fs-sort__btn--plain">
                         Page <span x-text="page"></span> of <span x-text="totalPages"></span>
-                        <svg class="w-4 h-4 ml-1 transition-transform" :class="open ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg class="fs-chevron fs-chevron--inset" :class="open ? 'is-open' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
                         </svg>
                     </button>
                     <nav x-show="open" @click.outside="open = false"
-                         class="absolute bottom-8 left-1/2 -translate-x-1/2 bg-white border border-gray-200 rounded-xl shadow-lg z-20 w-36 max-h-52 overflow-auto py-1">
+                         class="fs-page-menu">
                         <template x-for="p in totalPages" :key="p">
-                            <button class="w-full text-center px-4 py-2.5 text-sm hover:bg-gray-50"
-                                    :class="p === page ? 'font-bold text-ahy-blue' : ''"
+                            <button class="fs-menu__item fs-menu__item--center"
+                                    :class="p === page ? 'is-active' : ''"
                                     @click="goToPage(p); open = false"
                                     x-text="'Page ' + p"></button>
                         </template>
@@ -373,9 +431,9 @@ var _ahyCatInit = {
 
                 <button aria-label="Next" :disabled="page >= totalPages"
                         @click="page < totalPages && goToPage(page + 1)"
-                        class="bg-white shadow-lg rounded-full w-12 h-12 flex items-center justify-center border border-gray-200"
-                        :class="page >= totalPages ? 'opacity-30 cursor-not-allowed' : 'hover:border-ahy-blue'">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                        class="fs-pager__btn"
+                        :class="page >= totalPages ? 'is-disabled' : ''">
+                    <svg class="fs-icon fs-icon--lg" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
                 </button>
             </div>
 
@@ -386,342 +444,17 @@ var _ahyCatInit = {
 
 
 <script>
-function ahyCategoryResults(productsApiUrl, searchToken, categoryName, platformStoreId, categoryId) {
-    return {
-        productsApiUrl,
-        searchToken,
-        categoryName,
-        platformStoreId,
-        categoryId,
-        results: [],
-        cartLoading: {},
-        wishLoading: {},
-        filters: [],
-        apiFacets: [],
-        activeFilters: [],
-        priceRange: { min: null, max: null },
-        activePriceMin: '',
-        activePriceMax: '',
-        activePriceRange: null,
-        priceCollapsed: false,
-        total: 0,
-        page: 1,
-        pageSize: 18,
-        totalPages: 1,
-        sort: 'relevance',
-        loading: true,
-        paginationLoading: false,
-
-        async _refreshToken() {
-            const t = await window.ahyTokenRefresh?.refresh();
-            if (t) this.searchToken = t;
-            return !!t;
-        },
-
-        init() {
-            // The plain server-rendered grid (#fs-ssr-grid, see results.phtml above
-            // this x-data root) is a pre-JS fallback only — the moment Alpine boots,
-            // hand off entirely to Alpine's own rendering below, whether it seeds
-            // instantly from the embedded payload or falls through to a live fetch.
-            document.getElementById('fs-ssr-grid')?.remove();
-
-            window.addEventListener('ahy-token-refreshed', e => { this.searchToken = e.detail; });
-            const params = new URLSearchParams(window.location.search);
-            this.page = parseInt(params.get('p') || '1', 10);
-            const sortParam = params.get('sort');
-            if (sortParam) this.sort = sortParam;
-
-            // Unlike search, this is seeded for EVERY page/sort — the server built
-            // this exact view (see PageContext::buildCategoryQuery), not just a
-            // canonical default — so there's no "is this the default view" gate here.
-            const payloadEl = document.getElementById('fs-ssr-payload');
-            if (payloadEl) {
-                try {
-                    const seed = JSON.parse(payloadEl.textContent);
-                    if (seed && seed.success) {
-                        this.results    = seed.data || [];
-                        this.total      = (seed.pagination && seed.pagination.total) || 0;
-                        this.pageSize   = (seed.pagination && seed.pagination.per_page) || this.pageSize;
-                        this.totalPages = Math.max(1, Math.ceil(this.total / this.pageSize));
-                        this.apiFacets  = seed.facets || [];
-                        this.buildFilters();
-                        this.loading = false;
-                        return;
-                    }
-                } catch (e) {
-                    console.error('[SmartSearch] SSR payload parse error, falling back to fetch()', e);
-                }
-            }
-
-            const startFetch = () => {
-                window.ahyTokenRefresh?.get().then(t => {
-                    if (t) this.searchToken = t;
-                    this.fetch();
-                });
-            };
-            if (document.readyState === 'loading') {
-                document.addEventListener('DOMContentLoaded', startFetch, { once: true });
-            } else {
-                startFetch();
-            }
-        },
-
-        async fetch() {
-            this.loading = true;
-            try {
-                const url = new URL(this.productsApiUrl);
-                url.searchParams.set('search_token', this.searchToken);
-                url.searchParams.set('category', this.categoryName);
-                // Two categories can share the same name (e.g. a "Featured Products"
-                // subcategory exists under both "Boating Gear" and "Hunting Gear"), so
-                // the name-only filter above matches every same-named category's
-                // products combined. Sending category_ids scopes the match to this
-                // exact category — the API prefers it over the name filter when both
-                // are present (see OpenSearchService's category_ids-first handling).
-                if (this.categoryId) url.searchParams.set('category_ids', this.categoryId);
-                url.searchParams.set('page', this.page);
-                url.searchParams.set('per_page', this.pageSize);
-                // platform_store_id intentionally omitted — getPlatformStoreId()'s
-                // position-based calculation is wrong for single-store-view sites
-                // (always resolves to 1). Omitting it lets the backend fall back to
-                // the store already correctly configured on the API key itself,
-                // same as the header search (search-form.phtml) and search/results.phtml.
-
-                const filterMap = {};
-                this.activeFilters.forEach(f => {
-                    if (f.key === 'category') return;
-                    if (!filterMap[f.key]) filterMap[f.key] = [];
-                    filterMap[f.key].push(f.value);
-                });
-                Object.entries(filterMap).forEach(([key, vals]) => url.searchParams.set(key, vals.join('\x1F')));
-                if (this.activePriceMin !== '') url.searchParams.set('price_min', this.activePriceMin);
-                if (this.activePriceMax !== '') url.searchParams.set('price_max', this.activePriceMax);
-                if (this.sort !== 'relevance') url.searchParams.set('sort', this.sort);
-
-                let resp = await fetch(url.toString(), {credentials: 'include', cache: 'no-store'});
-                if (resp.status === 401) {
-                    await this._refreshToken();
-                    url.searchParams.set('search_token', this.searchToken);
-                    resp = await fetch(url.toString(), {credentials: 'include', cache: 'no-store'});
-                }
-                const data = await resp.json();
-
-                if (data.success) {
-                    this.results    = data.data || [];
-                    console.log('[Category] product.image samples:', this.results.slice(0,3).map(p => ({sku: p.sku, image: p.image})));
-                    this.total      = (data.pagination && data.pagination.total) || 0;
-                    this.pageSize   = (data.pagination && data.pagination.per_page) || 18;
-                    this.totalPages = Math.max(1, Math.ceil(this.total / this.pageSize));
-                    this.apiFacets  = data.facets || [];
-                    this.buildFilters();
-                } else {
-                    console.error('[SmartSearch] Category API error:', data);
-                }
-            } catch(e) {
-                console.error('[SmartSearch] Category fetch error', e);
-            }
-            this.loading = false;
-        },
-
-        buildFilters() {
-            if (this.apiFacets.length === 0) return;
-            const priceFacet = this.apiFacets.find(f => f.key === 'price');
-            if (priceFacet) {
-                this.priceRange = { min: priceFacet.min ?? null, max: priceFacet.max ?? null };
-            }
-            const prevState = {};
-            this.filters.forEach(f => { prevState[f.key] = { collapsed: f.collapsed, showAll: f.showAll }; });
-            this.filters = this.apiFacets
-                .filter(f => f.key !== 'price' && f.key !== 'category')
-                .map(f => ({
-                    key:       f.key,
-                    label:     f.key === 'brand' ? 'Shop By Brand' : f.label,
-                    collapsed: prevState[f.key]?.collapsed ?? false,
-                    showAll:   prevState[f.key]?.showAll ?? false,
-                    options:   (f.options || []).map(o => ({ value: o.value, count: o.count })).sort((a, b) => {
-                        const aA = this.activeFilters.some(af => af.key === f.key && af.value === a.value) ? -1 : 1;
-                        const bA = this.activeFilters.some(af => af.key === f.key && af.value === b.value) ? -1 : 1;
-                        return aA - bA;
-                    }),
-                }));
-        },
-
-        sortedResults() {
-            let res = this.results;
-            if (this.activePriceMin !== '' || this.activePriceMax !== '') {
-                const lo = this.activePriceMin !== '' ? parseFloat(this.activePriceMin) : 0;
-                const hi = this.activePriceMax !== '' ? parseFloat(this.activePriceMax) : Infinity;
-                res = res.filter(p => {
-                    const price = parseFloat(
-                        (p.special_price && parseFloat(p.special_price) < parseFloat(p.price))
-                            ? p.special_price : (p.price || 0)
-                    );
-                    return price >= lo && (hi === Infinity || price <= hi);
-                });
-            }
-            if (this.sort === 'relevance') return res;
-            return [...res].sort((a, b) => {
-                const getPrice = p => {
-                    const base = parseFloat(p.price) || 0;
-                    const sp   = parseFloat(p.special_price) || 0;
-                    return (sp > 0 && sp < base) ? sp : base;
-                };
-                const diff = getPrice(a) - getPrice(b);
-                return this.sort === 'price_asc' ? diff : -diff;
-            });
-        },
-
-        _scrollToResults() {
-            const el = document.querySelector('.column.main');
-            if (!el) return;
-            const y = Math.max(0, el.getBoundingClientRect().top + window.pageYOffset);
-            window.scrollTo({ top: y, behavior: 'smooth' });
-        },
-
-        toggleFilter(key, label, value) {
-            const idx = this.activeFilters.findIndex(f => f.key === key && f.value === value);
-            if (idx >= 0) this.activeFilters.splice(idx, 1);
-            else this.activeFilters.push({ key, label, value });
-            this.page = 1;
-            this._scrollToResults();
-            this.fetch();
-        },
-
-        removeFilter(key, value) {
-            this.activeFilters = this.activeFilters.filter(f => !(f.key === key && f.value === value));
-            this.page = 1;
-            this._scrollToResults();
-            this.fetch();
-        },
-
-        applyPriceFilter() { this.page = 1; this._scrollToResults(); this.fetch(); },
-        clearPriceFilter() { this.activePriceMin = ''; this.activePriceMax = ''; this.activePriceRange = null; this.page = 1; this._scrollToResults(); this.fetch(); },
-        clearAllFilters() { this.activeFilters = []; this.activePriceMin = ''; this.activePriceMax = ''; this.activePriceRange = null; this.page = 1; this._scrollToResults(); this.fetch(); },
-
-        priceRangeBuckets() {
-            if (this.priceRange.min === null) return [];
-            const all = [
-                { label: 'Under $50',     min: '',   max: 50   },
-                { label: '$50 – $100',    min: 50,   max: 100  },
-                { label: '$100 – $250',   min: 100,  max: 250  },
-                { label: '$250 – $500',   min: 250,  max: 500  },
-                { label: '$500 – $1,000', min: 500,  max: 1000 },
-                { label: 'Over $1,000',   min: 1000, max: ''   },
-            ];
-            return all.filter(b => {
-                const lo = b.min === '' ? 0 : b.min;
-                const hi = b.max === '' ? Infinity : b.max;
-                return lo < this.priceRange.max && hi > this.priceRange.min;
-            });
-        },
-
-        togglePriceRange(bucket) {
-            if (this.activePriceRange && this.activePriceRange.label === bucket.label) {
-                this.activePriceRange = null; this.activePriceMin = ''; this.activePriceMax = '';
-            } else {
-                this.activePriceRange = bucket;
-                this.activePriceMin = bucket.min === '' ? '' : String(bucket.min);
-                this.activePriceMax = bucket.max === '' ? '' : String(bucket.max);
-            }
-            this.applyPriceFilter();
-        },
-
-        isFilterActive(key, value) { return this.activeFilters.some(f => f.key === key && f.value === value); },
-
-        goToPage(p) { this.page = p; this.paginationLoading = true; this.fetch().then(() => { this.paginationLoading = false; this.$nextTick(() => this._scrollToResults()); }); },
-        setSort(val) {
-            this.sort = val; this.page = 1; this.fetch();
-        },
-        sortLabel() {
-            return { relevance: 'Relevance', price_asc: 'Price: Low to high', price_desc: 'Price: High to low' }[this.sort] || 'Relevance';
-        },
-
-        FREE_SHIPPING_SELLERS: ['The Everest Marketplace', 'The Everest Collection'],
-        isFreeShipping(product) {
-            return this.FREE_SHIPPING_SELLERS.includes(product.brand || 'The Everest Marketplace');
-        },
-        cleanName(name) {
-            if (!name) return '';
-            const d = document.createElement('textarea');
-            d.innerHTML = name;
-            return d.value;
-        },
-
-        FALLBACK_IMG: 'https://static.everest.com/media/.thumbswysiwyg/everest-logo_2_.png',
-        isFallbackImg(image) {
-            return this.imgUrl(image) === this.FALLBACK_IMG;
-        },
-        imgUrl(image) {
-            if (!image || image.includes('no_selection')) return this.FALLBACK_IMG;
-            const falcosenseBase = 'https://static.everest.com/media/falcosense/800x800';
-            if (image.includes('/falcosense/')) {
-                const fm = image.match(/\/falcosense\/[^/]+\/(?:.*\/)?([^/]+\/[^/]+\/[^/]+)$/);
-                return fm ? falcosenseBase + '/' + fm[1] : image;
-            }
-            let path = image.startsWith('http') ? image.replace(/^https?:\/\/[^/]+/, '') : image;
-            path = path.replace(/\/cache\/[^/]+\//, '/');
-            const m = path.match(/\/catalog\/product\/(.+)$/);
-            if (m) return falcosenseBase + '/' + m[1];
-            const filename = path.split('/').pop();
-            if (!filename) return this.FALLBACK_IMG;
-            if (filename.length >= 2) {
-                return falcosenseBase + '/' + filename[0] + '/' + filename[1] + '/' + filename;
-            }
-            return falcosenseBase + '/' + path.replace(/^\/+/, '');
-        },
-        handleImgError(event) {
-            const el = event.target;
-            if (el.dataset.imgFailed) return;
-            el.dataset.imgFailed = '1';
-            el.src = this.FALLBACK_IMG;
-            el.style.opacity = '0.45';
-        },
-
-        async addSimpleToCart(product) {
-            const pid = product.product_id;
-            this.cartLoading = { ...this.cartLoading, [pid]: true };
-            try {
-                const params = new URLSearchParams({ product: pid, qty: 1, form_key: hyva.getFormKey() });
-                const resp = await fetch('<?= $addToCartUrl ?>', {
-                    method: 'POST',
-                    body: params,
-                    headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8', 'X-Requested-With': 'XMLHttpRequest' },
-                });
-                if (resp.ok || resp.redirected) {
-                    window.dispatchEvent(new CustomEvent('reload-customer-section-data'));
-                    window.dispatchEvent(new CustomEvent('toggle-cart'));
-                    typeof window.dispatchMessages !== 'undefined' && window.dispatchMessages([{type: 'success', text: 'Product added to cart.'}], 3000);
-                }
-            } catch(e) {
-                console.error('[SmartSearch] Add to cart failed', e);
-            } finally {
-                this.cartLoading = { ...this.cartLoading, [pid]: false };
-            }
-        },
-
-        async addToWishlist(productId) {
-            const pid = productId;
-            this.wishLoading = { ...this.wishLoading, [pid]: true };
-            try {
-                const resp = await window.fetch(window.BASE_URL + 'wishlist/index/add/', {
-                    method: 'POST',
-                    headers: { 'content-type': 'application/x-www-form-urlencoded; charset=UTF-8' },
-                    body: 'form_key=' + hyva.getFormKey() + '&product=' + pid + '&uenc=' + hyva.getUenc(),
-                    credentials: 'include',
-                });
-                if (resp.redirected) { window.location.href = resp.url; return; }
-                if (resp.ok) {
-                    const data = await resp.json().catch(() => null);
-                    const msg = data && data.success ? 'Product added to Wish List.' : (data && data.error_message) || 'Could not add to wishlist.';
-                    const type = data && data.success ? 'success' : 'error';
-                    typeof window.dispatchMessages !== 'undefined' && window.dispatchMessages([{ type, text: msg }], 5000);
-                    window.dispatchEvent(new CustomEvent('reload-customer-section-data'));
-                }
-            } catch(e) { console.error('[SmartSearch] wishlist error', e); }
-            finally { this.wishLoading = { ...this.wishLoading, [pid]: false }; }
-        },
-    };
-}
+/*
+ * ahyCategoryResults() now lives in web/js/plp/category-results.js.
+ *
+ * It was inline here, which meant a storefront could not replace this
+ * template's markup without also losing the component — the reason
+ * Ahy_PlpRevamp had to keep a full copy of it. As a file, markup and
+ * behaviour are separable and every store shares one implementation.
+ *
+ * Registered in view/frontend/layout/default.xml. The file guards against
+ * overwriting a host-supplied component of the same name.
+ */
 
 document.addEventListener('alpine:init', function() {
     if (typeof Alpine !== 'undefined') { window._ssAlpine = Alpine; }
@@ -738,91 +471,78 @@ document.addEventListener('alpine:initialized', function() {
 </script>
 
 <style>
-    /* Everest GIF page loader */
-    .ahy-page-loader {
-        background: url(/media/icons/everest-loading-icon.gif) no-repeat center;
-        height: 100px;
-        width: 100px;
-        margin: 80px auto;
-        position: relative;
-    }
-    /* Modal loader — white blurred backdrop, pinned over the results area while loading/paginating */
-    .ahy-modal-loader-overlay {
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        width: 100vw;
-        height: 100vh;
-        z-index: 999998;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        background-color: #efeadd;
-    }
-    /* Prevent CLS — reserve column height until Alpine hydrates */
-    .catalog-category-view .column.main { min-height: 4500px; overflow-anchor: none; }
-    .ahy-filter-title {
-        font-size: 1.125rem !important;
-        line-height: 1.75rem !important;
-        font-weight: 600 !important;
-    }
-    .ahy-filter-chip:hover { background-color: rgb(237, 234, 234) !important; }
-    .ahy-filter-option {
-        font-size: 13px !important;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-        min-width: 0;
-    }
-    @media (min-width: 768px) {
-        .ahy-filter-sidebar { width: 200px !important; padding-right: 12px; flex-shrink: 0; }
-        .ahy-filter-layout { gap: 1.25rem !important; }
-        .ahy-filter-sidebar label { gap: 0.375rem !important; }
-    }
-    @media (min-width: 768px) and (max-width: 1023px) {
-        .ahy-plp-btn-wrap { display: flex !important; justify-content: flex-end !important; }
-        .ahy-plp-cart-btn { width: 90px !important; padding-top: 0.25rem !important; padding-bottom: 0.25rem !important; padding-left: 0.75rem !important; padding-right: 0.75rem !important; font-size: 0.75rem !important; }
-    }
-    @media (min-width: 1024px) {
-        .ahy-filter-count { margin-left: 1.5rem !important; }
-        .ahy-filter-sidebar { width: 285px !important; padding-right: 24px; flex-shrink: 0; }
-        .ahy-filter-layout { gap: 3rem !important; }
-        .ahy-filter-sidebar label { gap: 0.625rem !important; }
-    }
-    .catalog-category-view .columns { column-gap: 0 !important; row-gap: 0 !important; }
-    @media (min-width: 768px) {
-        .catalog-category-view .columns { padding-right: 0 !important; }
-        .catalog-category-view .column.main { padding-right: 0 !important; }
-    }
-    .page-layout-2columns-left .columns,
-    .page-layout-2columns-right .columns,
-    .page-layout-3columns .columns { grid-template-columns: repeat(1, minmax(0, 1fr)); }
-    .page-layout-2columns-left .columns .main,
-    .page-layout-3columns .columns .main { grid-column-start: 1 !important; }
-    .ahy-mobile-card { margin-left:50%; width:100vw; transform:translateX(-50%); }
-    @media (min-width:640px) {
-        .ahy-mobile-card { margin-left:auto; width:100%; transform:none; max-width:640px; }
-        .ahy-filters {flex-grow: 1; max-width: 300px;}
+/*
+ * Only rules that CANNOT live in web/css/fs-components.css remain here.
+ *
+ * Everything styling FalcoSense's own markup moved to the module stylesheet
+ * under .fs-root — the card, grid, filters, chips, loader, slide-over and
+ * mobile bar all went with it.
+ *
+ * ---------------------------------------------------------------------------
+ * WHAT IS LEFT, AND WHY: host page-layout overrides.
+ *
+ * These reach OUTSIDE .fs-root on purpose. They collapse the host theme's
+ * column grid so the product listing can run full width, and reserve column
+ * height so the page does not jump while Alpine hydrates.
+ *
+ * They are the module's last remaining assumption about the page it is
+ * installed in, and they are theme-specific: `grid-template-columns` only does
+ * anything if the theme lays `.columns` out as a CSS grid (Hyva does; Luma does
+ * not), so on a Luma store they are inert and the listing will sit inside the
+ * theme's narrow main column instead.
+ *
+ * The portable replacement is a full-bleed .fs-root that does not care how the
+ * host lays out its columns:
+ *     .fs-plp-root { margin-inline: calc(50% - 50vw); }
+ *
+ * NOTE: an earlier draft of this note used
+ *     width:100vw; margin-left:50%; transform:translateX(-50%);
+ * DO NOT USE IT. A transform on an ancestor establishes a containing block for
+ * position:fixed descendants, and we have four (.fs-drawer, .fs-slideover,
+ * .fs-slideover__rail, .fs-panel — the mobile filter drawer). They would stop
+ * being viewport-fixed and get trapped inside the grid. The margin-inline form
+ * is transform-free and has no such effect.
+ *
+ * Remaining caveat either way: 50vw counts the scrollbar, so on a page with a
+ * vertical scrollbar this overshoots by ~8px per side and can introduce a
+ * horizontal scrollbar. Needs `overflow-x: clip` on a wrapper, or the host's
+ * own container width, before it ships.
+ *
+ * That is deliberately NOT applied yet — it changes Everest's category layout
+ * and needs visual confirmation on dev2 first. Until then this block stays.
+ * ---------------------------------------------------------------------------
+ */
+/* min-height moved to .fs-root.is-loading (our own root). overflow-anchor stays
+   here: .column.main is the scrolling container, and a descendant cannot switch
+   off the browser's scroll anchoring for its ancestor. This is the one host
+   property we still need, and it is documented as an integration note. */
+.catalog-category-view .column.main { overflow-anchor: none; }
 
-    }
-    @media (max-width: 640px){
-        .ahy-filters-menu {width:100vw;transform:translateX(-50%);margin-left:50%;}
-        .ahy-filters {flex-grow: 1; max-width: 300px;}
-    }
+/* Category rows are taller than search rows, so this listing reserves more. */
+.fs-root { --fs-plp-loading-min-height: 4500px; }
+.catalog-category-view .columns { column-gap: 0 !important; row-gap: 0 !important; }
+.catalog-category-view .wishlist-widget { display: none !important; }
 
-    .catalog-category-view .wishlist-widget { display: none !important; }
-    .sidebar.sidebar-additional { display: none;}
+@media (min-width: 768px) {
+    .catalog-category-view .columns { padding-right: 0 !important; }
+    .catalog-category-view .column.main { padding-right: 0 !important; }
+}
 
-    /* Targeted hardening for the new SSR grid only (#fs-ssr-grid) — same
-       narrow, box-model-only !important guard already used on search's
-       version, not a blanket reset (this module deliberately shares the
-       theme's Tailwind classes everywhere else). */
-    #fs-ssr-grid {
-        box-sizing: border-box !important;
-        width: 100% !important;
-        max-width: 100% !important;
-        margin: 0 !important;
-    }
+/*
+ * REMOVED: the .page-layout-* grid overrides.
+ *
+ * They forced the theme's .columns grid to a single column so our listing was
+ * not squeezed beside an empty sidebar slot. catalog_category_view.xml now
+ * declares layout="1column", so the framework produces a one-column page and
+ * there is nothing left to override — see the comment at the top of that file.
+ *
+ * What went:
+ *     .catalog-category-view.page-layout-2columns-left  .columns { grid-template-columns: repeat(1, ...) }
+ *     .catalog-category-view.page-layout-2columns-right .columns { ... }
+ *     .catalog-category-view.page-layout-3columns       .columns { ... }
+ *     ...and the matching `grid-column-start: 1 !important` on .main
+ *
+ * Those rules only worked on a theme whose .columns is a CSS grid carrying
+ * Magento's own body classes. Dropping them is what makes this page portable.
+ */
 </style>

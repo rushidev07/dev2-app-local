@@ -9,9 +9,8 @@ $addToCartBorderRadius = $block->escapeHtmlAttr(
 );
 $addToCartIconUrl = $block->getStyleImageUrl('add_to_cart_button', 'icon');
 $addToCartFilled = $block->getStyleValue('add_to_cart_button', 'button_style', 'outline') === 'filled';
-$addToCartColorClasses = $addToCartFilled
-    ? 'bg-ahy-blue !text-white hover:opacity-90'
-    : '!bg-transparent !text-ahy-blue hover:shadow-[#0d2f47_0px_0px_0px_1px_inset]';
+// Admin filled/outline setting -> modifier class (see fs-components.css).
+$addToCartVariantClass = $addToCartFilled ? 'fs-btn--filled' : 'fs-btn--outline';
 $addToCartLabelOverride = $block->getStyleValue('add_to_cart_button', 'label_text', '');
 $addToCartLabel = $addToCartLabelOverride !== '' ? $addToCartLabelOverride : 'Add';
 $addToCartOptionsLabelOverride = $block->getStyleValue('add_to_cart_button', 'options_label_text', '');
@@ -19,19 +18,19 @@ $addToCartOptionsLabel = $addToCartOptionsLabelOverride !== '' ? $addToCartOptio
 $addToCartLabelJs = $block->escapeJs($addToCartLabel);
 ?>
                     <!-- edge-to-edge below 640px, padded + max-w-[640px] above -->
-                    <div class="relative flex bg-white ahy-mobile-card" style="border-radius:var(--ahy-card-radius);border:var(--ahy-card-border);box-shadow:var(--ahy-card-shadow);">
+                    <div class="fs-card fs-card--mobile" style="border-radius:var(--ahy-card-radius);border:var(--ahy-card-border);box-shadow:var(--ahy-card-shadow);">
 
                         <!-- Image column -->
-                        <div class="relative shrink-0" style="width:45%">
-                            <div class="absolute top-3 left-3 z-10"
+                        <div class="fs-card__media-wrap" style="width:45%">
+                            <div class="fs-card__badge"
                                  x-show="product.variants && product.variants.length <= 10 && product.variants.length > 0">
-                                <span class="rounded border-2 border-ahy-stock-green bg-white px-2 py-0.5 text-xs font-semibold text-ahy-stock-green"
+                                <span class="fs-card__stock-badge fs-card__stock-badge--tight"
                                       x-text="(product.variants || []).length + ' Left'"></span>
                             </div>
-                            <a :href="product.url_key ? '/' + product.url_key + '.html' : '#'" class="block h-full">
+                            <a :href="product.url_key ? '/' + product.url_key + '.html' : '#'" class="fs-card__media fs-card__media--fill">
                                 <img :src="imgUrl(product.image)"
                                      :alt="product.name"
-                                     class="w-full h-full object-contain p-3"
+                                     class="fs-card__image fs-card__image--fill"
                                      :style="{ opacity: isFallbackImg(product.image) ? 0.45 : 1 }"
                                      style="min-height:160px;max-height:200px"
                                      loading="eager"
@@ -41,61 +40,61 @@ $addToCartLabelJs = $block->escapeJs($addToCartLabel);
                         </div>
 
                         <!-- Info column -->
-                        <div class="flex-1 min-w-0 flex flex-col px-3 py-4">
+                        <div class="fs-card__body fs-card__body--mobile">
                             <a :href="product.url_key ? '/' + product.url_key + '.html' : '#'"
-                               class="font-bold text-ahy-blue leading-snug line-clamp-3" style="font-size:15px"
+                               class="fs-card__title fs-card__title--mobile" style="font-size:15px"
                                x-html="product.name"></a>
-                            <p class="text-xs text-gray-500 mt-1"
-                               x-text="'Sold By ' + (product.brand || 'The Everest Marketplace')"></p>
-                            <div class="mt-2">
+                            <p class="fs-card__seller"
+                               x-show="FalcoSense.soldBy(product.brand)" x-text="FalcoSense.soldBy(product.brand)"></p>
+                            <div class="fs-card__price-block">
                                 <template x-if="product.price && product.special_price && product.special_price < product.price">
                                     <div>
-                                        <div class="text-ahy-red text-sm font-bold">Deal</div>
-                                        <div class="flex items-baseline gap-2">
-                                            <span class="text-xl font-extrabold text-ahy-blue" x-html="hyva.formatPrice(product.special_price)"></span>
-                                            <span class="text-sm text-gray-400 line-through" x-html="hyva.formatPrice(product.price)"></span>
+                                        <div class="fs-card__price-from fs-card__price-from--plain">Deal</div>
+                                        <div class="fs-card__price-row">
+                                            <span class="fs-card__price-current fs-card__price-current--sm" x-html="hyva.formatPrice(product.special_price)"></span>
+                                            <span class="fs-card__price-was" x-html="hyva.formatPrice(product.price)"></span>
                                         </div>
                                     </div>
                                 </template>
                                 <template x-if="product.price && (!product.special_price || product.special_price >= product.price)">
                                     <div>
-                                        <span class="text-ahy-red text-sm font-bold">From</span>
-                                        <div class="text-xl font-extrabold text-ahy-blue" x-html="hyva.formatPrice(product.price)"></div>
+                                        <span class="fs-card__price-from fs-card__price-from--plain">From</span>
+                                        <div class="fs-card__price-current fs-card__price-current--sm" x-html="hyva.formatPrice(product.price)"></div>
                                     </div>
                                 </template>
                             </div>
-                            <p class="text-sm text-gray-900 font-semibold mt-2">FREE Shipping</p>
-                            <div class="flex items-center gap-2 mt-3">
+                            <p class="fs-card__shipping fs-card__shipping--mobile">FREE Shipping</p>
+                            <div class="fs-card__actions">
                                 <template x-if="product.type !== 'configurable'">
                                     <button @click.prevent="addSimpleToCart(product)"
-                                            :class="cartLoading[product.product_id] === true ? 'opacity-60 pointer-events-none' : ''"
-                                            class="flex items-center gap-2 border-2 border-ahy-blue <?= $addToCartColorClasses ?> px-5 py-2 text-sm font-bold"
+                                            :class="cartLoading[product.product_id] === true ? 'is-loading' : ''"
+                                            class="fs-btn fs-btn--compact <?= $addToCartVariantClass ?>"
                                             style="border-radius: <?= $addToCartBorderRadius ?>px">
-                                        <svg x-show="cartLoading[product.product_id] === true" class="animate-spin w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 22 6.477 22 12h-4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/></svg>
+                                        <svg x-show="cartLoading[product.product_id] === true" class="fs-icon fs-icon--spin" fill="none" viewBox="0 0 24 24"><circle class="fs-spinner__track" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="fs-spinner__head" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 22 6.477 22 12h-4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/></svg>
                                         <?php if ($addToCartIconUrl): ?>
-                                        <img x-show="cartLoading[product.product_id] !== true" src="<?= $block->escapeUrl($addToCartIconUrl) ?>" alt="" class="w-4 h-4 shrink-0 object-contain" />
+                                        <img x-show="cartLoading[product.product_id] !== true" src="<?= $block->escapeUrl($addToCartIconUrl) ?>" alt="" class="fs-btn__icon" />
                                         <?php else: ?>
-                                        <svg x-show="cartLoading[product.product_id] !== true" class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+                                        <svg x-show="cartLoading[product.product_id] !== true" class="fs-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
                                         <?php endif; ?>
                                         <span x-text="cartLoading[product.product_id] === true ? 'Adding…' : '<?= $addToCartLabelJs ?>'"></span>
                                     </button>
                                 </template>
                                 <template x-if="product.type === 'configurable'">
                                     <button @click.prevent="window.dispatchEvent(new CustomEvent('ahy-cfg-modal-open', {detail: product, bubbles: true}))"
-                                            class="flex items-center gap-2 border-2 border-ahy-blue <?= $addToCartColorClasses ?> px-5 py-2 text-sm font-bold"
+                                            class="fs-btn fs-btn--compact <?= $addToCartVariantClass ?>"
                                             style="border-radius: <?= $addToCartBorderRadius ?>px">
-                                        <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/></svg>
+                                        <svg class="fs-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/></svg>
                                         <?= $block->escapeHtml($addToCartOptionsLabel) ?>
                                     </button>
                                 </template>
                                 <button @click.prevent="addToWishlistModal(product.product_id)"
                                         :disabled="wishLoading[product.product_id]"
-                                        class="w-9 h-9 shrink-0 rounded-full border border-gray-300 bg-white flex items-center justify-center text-ahy-blue hover:text-red-500">
+                                        class="fs-card__wishlist fs-card__wishlist--inline">
                                     <template x-if="wishLoading[product.product_id]">
-                                        <svg class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 22 6.477 22 12h-4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/></svg>
+                                        <svg class="fs-icon fs-icon--spin" fill="none" viewBox="0 0 24 24"><circle class="fs-spinner__track" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="fs-spinner__head" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 22 6.477 22 12h-4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/></svg>
                                     </template>
                                     <template x-if="!wishLoading[product.product_id]">
-                                        <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 15.91 20" fill="currentColor">
+                                        <svg class="fs-icon fs-icon--lg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 15.91 20" fill="currentColor">
                                             <path d="M14.41,1.5v16L9.27,12.71a1.62,1.62,0,0,0-2.19,0L1.5,17.58V1.5H14.41M14.76,0H1.15A1.16,1.16,0,0,0,0,1.15v18.1a.74.74,0,0,0,1.24.56l6.83-6a.12.12,0,0,1,.18,0l6.38,5.9a.74.74,0,0,0,.52.21.76.76,0,0,0,.76-.77v-18A1.15,1.15,0,0,0,14.76,0Z"/>
                                         </svg>
                                     </template>

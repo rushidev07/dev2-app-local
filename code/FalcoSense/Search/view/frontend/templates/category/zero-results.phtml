@@ -6,6 +6,6 @@
  * position it previously occupied inline.
  */
 ?>
-<div x-show="!loading && results.length === 0" class="px-6 py-12 text-center text-gray-500">
+<div x-show="!loading && !error && results.length === 0" class="fs-plp-empty">
     No records found for this category.
 </div>

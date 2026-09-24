@@ -32,6 +32,22 @@ $shadowCss = in_array($productCardBorderShadow, ['shadow', 'both'], true)
            as a variable (rather than only baked into the rule below) so the
            semantic .fs-grid honours this admin setting too. */
         --ahy-grid-columns: <?= $productCardColumns ?>;
+
+        /*
+         * Loading indicator.
+         *
+         * fs-tokens.css deliberately ships a brand-neutral CSS spinner as the
+         * default, because a hardcoded GIF path is meaningless on another store.
+         * This store has its own animated logo, which is what shoppers here saw
+         * before the stylesheet rewrite — the rewrite dropped it because the old
+         * .ahy-page-loader rule that carried it stopped being used.
+         *
+         * Setting the image and hiding the spinner restores it. A store with no
+         * loader asset of its own simply omits these two lines and keeps the
+         * spinner.
+         */
+        --fs-loader-image: url("/media/icons/everest-loading-icon.gif");
+        --fs-loader-spinner-display: none;
     }
     /* Retained for templates still using .ahy-product-grid. Once every surface
        has moved to .fs-grid this rule can go; the variable above replaces it. */

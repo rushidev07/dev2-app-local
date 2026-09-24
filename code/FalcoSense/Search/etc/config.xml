@@ -4,6 +4,9 @@
     <default>
         <smart_search>
             <general>
+                <!-- Detected from the active theme. The explicit values exist only
+                     to override detection; FalcoSense's search always mounts. -->
+                <header_mount>auto</header_mount>
                 <frontend_enabled>1</frontend_enabled>
                 <enabled>1</enabled>
                 <api_key></api_key>
@@ -12,6 +15,17 @@
                 <platform_store_id>1</platform_store_id>
                 <products_per_page>12</products_per_page>
             </general>
+            <!-- Deliberately blank. These are one store's data, not the
+                 module's: a shipped default would put another merchant's seller
+                 names and placeholder image on a new storefront. Every consumer
+                 treats blank as "feature off", never as an error. -->
+            <plp>
+                <fallback_image></fallback_image>
+                <cdn_base></cdn_base>
+                <free_shipping_sellers></free_shipping_sellers>
+                <default_seller></default_seller>
+                <scroll_offset>0</scroll_offset>
+            </plp>
             <no_results_modal>
                 <enabled>1</enabled>
                 <title>No results for "{query}"</title>

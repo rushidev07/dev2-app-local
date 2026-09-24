@@ -45,13 +45,34 @@ class FalcoSensePlpProvider implements PlpDataProviderInterface
     ) {
     }
 
+    /**
+     * Request-scoped memo, keyed by PlpQuery::cacheKey().
+     *
+     * More than one block can legitimately need the same listing in a single
+     * render — the grid renders it, and the structured-data block describes it.
+     * Without this, each one issues its own platform HTTP call for identical
+     * data, doubling the latency of every listing page.
+     *
+     * Deliberately in-memory and per-request: the result is already bounded by
+     * the response lifetime, and a persistent cache here would need invalidation
+     * rules that belong to the platform, not to us.
+     *
+     * @var array<string, PlpResult>
+     */
+    private array $memo = [];
+
     public function fetch(PlpQuery $query): PlpResult
     {
-        if ($query->isCategory()) {
-            return $this->fetchCategory($query);
+        $key = $query->cacheKey();
+        if (isset($this->memo[$key])) {
+            return $this->memo[$key];
         }
 
-        return $this->fetchSearch($query);
+        $result = $query->isCategory()
+            ? $this->fetchCategory($query)
+            : $this->fetchSearch($query);
+
+        return $this->memo[$key] = $result;
     }
 
     private function fetchSearch(PlpQuery $query): PlpResult

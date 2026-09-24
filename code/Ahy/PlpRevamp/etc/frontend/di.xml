@@ -1,0 +1,20 @@
+<?xml version="1.0"?>
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="urn:magento:framework:ObjectManager/etc/config.xsd">
+
+    <!--
+        dev2 VARIANT — NOT the dev1 original.
+
+        The original wires Plugin/Checkout/MinicartMemberPrice onto the minicart
+        item renderers. That plugin depends on
+        Ahy\CaliberNation\Api\QuoteItemMemberPriceInterface, and Ahy_CaliberNation
+        is not installed on dev2 — di:compile would fail on the unknown interface.
+
+        Both the plugin and its wiring are removed here because dev2 only needs
+        this module to verify that FalcoSense's shared PLP components coexist with
+        PlpRevamp's own. The minicart decorator is unrelated to that.
+
+        DO NOT copy this file back to dev1 or to production.
+    -->
+
+</config>

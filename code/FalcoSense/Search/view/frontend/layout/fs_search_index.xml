@@ -62,5 +62,20 @@
         <!-- Remove search result list blocks added by Hyva/core that may still load collections -->
         <referenceBlock name="search_result_list"      remove="true"/>
         <referenceBlock name="search.search_terms_log" remove="true"/>
-    </body>
+    
+        <!--
+            Listing structured data (ItemList + Product/Offer).
+
+            Mounted directly in "content" rather than as a child of the grid
+            block: a host module may remove our grid (Ahy_PlpRevamp does), and
+            structured data should not disappear with someone else's layout
+            choice. Renders nothing on non-canonical views — see
+            Block/Plp/StructuredData.
+        -->
+        <referenceContainer name="content">
+            <block class="FalcoSense\Search\Block\Plp\StructuredData"
+                   name="falcosense_plp_structured_data"
+                   template="FalcoSense_Search::plp/structured-data.phtml"/>
+        </referenceContainer>
+</body>
 </page>

@@ -37,4 +37,25 @@
                   instance="FalcoSense\Search\Observer\CustomerLogoutObserver"/>
     </event>
 
+    <!--
+        Declares the header-search mount for this store's theme family. See
+        Observer/AddLayoutHandles for why this is a configured handle rather than
+        two mounts in default.xml with a runtime guard.
+    -->
+    <event name="layout_load_before">
+        <observer name="falcosense_layout_handles"
+                  instance="FalcoSense\Search\Observer\AddLayoutHandles"/>
+    </event>
+
+    <!--
+        Faceted-navigation SEO. Marks filtered/sorted/paginated listings
+        NOINDEX,FOLLOW so they do not compete with the clean category or search
+        URL in the index. See Observer/PlpSeoObserver for why this hooks
+        layout_generate_blocks_after and why it sets robots but not canonical.
+    -->
+    <event name="layout_generate_blocks_after">
+        <observer name="falcosense_plp_seo"
+                  instance="FalcoSense\Search\Observer\PlpSeoObserver"/>
+    </event>
+
 </config>

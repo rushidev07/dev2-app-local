@@ -5,7 +5,9 @@ namespace FalcoSense\Search\Block;
 
 use Magento\Framework\View\Element\Template;
 use Magento\Framework\View\Element\Template\Context;
+use Magento\Framework\App\ObjectManager;
 use FalcoSense\Search\Helper\Data as SmartSearchHelper;
+use FalcoSense\Search\Block\Plp\PresentationConfigTrait;
 use FalcoSense\Search\Service\SearchTokenService;
 use Magento\Customer\Model\Session as CustomerSession;
 use Magento\Directory\Model\RegionFactory;
@@ -15,6 +17,8 @@ use FalcoSense\Search\Model\Plp\PlpResult;
 
 class Search extends Template
 {
+    use PresentationConfigTrait;
+
     private SmartSearchHelper $helper;
     private SearchTokenService $tokenService;
     private CustomerSession   $customerSession;
@@ -24,23 +28,39 @@ class Search extends Template
     private ?PlpResult $plpResult = null;
     private bool $plpResolved = false;
 
+    /**
+     * Constructor arguments are APPEND-ONLY past `array $data`.
+     *
+     * Host storefronts subclass this block — Everest's Ahy_PlpRevamp does — and
+     * those subclasses forward a fixed argument list to parent::__construct().
+     * Inserting a new dependency before $data silently rebinds their $data array
+     * onto a typed parameter, and every one of them dies with a TypeError that
+     * names this file rather than theirs. That is exactly how PlpRevamp broke
+     * when PageContext and PlpDataProviderInterface were first added here.
+     *
+     * So: $data keeps its historical position, new dependencies go after it and
+     * are nullable, and a null falls back to the object manager. Magento's own
+     * core classes use this pattern for the same reason. A subclass written
+     * against any past signature keeps working; DI passes the real instances
+     * when it constructs this class directly.
+     */
     public function __construct(
         Context            $context,
         SmartSearchHelper  $helper,
         SearchTokenService $tokenService,
         CustomerSession    $customerSession,
         RegionFactory      $regionFactory,
-        PageContext        $pageContext,
-        PlpDataProviderInterface $plpProvider,
-        array              $data = []
+        array              $data = [],
+        ?PageContext       $pageContext = null,
+        ?PlpDataProviderInterface $plpProvider = null
     ) {
         parent::__construct($context, $data);
         $this->helper          = $helper;
         $this->tokenService    = $tokenService;
         $this->customerSession = $customerSession;
         $this->regionFactory   = $regionFactory;
-        $this->pageContext     = $pageContext;
-        $this->plpProvider     = $plpProvider;
+        $this->pageContext     = $pageContext ?? ObjectManager::getInstance()->get(PageContext::class);
+        $this->plpProvider     = $plpProvider ?? ObjectManager::getInstance()->get(PlpDataProviderInterface::class);
     }
 
     /**

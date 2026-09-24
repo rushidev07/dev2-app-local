@@ -1,0 +1,45 @@
+<?xml version="1.0"?>
+<!--
+    Hyva-family header mount: overrides the theme's own "header-search" block.
+
+    Activated by Observer\AddLayoutHandles when
+    Stores > Configuration > FalcoSense > General > Header Search Mount is set to
+    "Hyva-family". Not loaded otherwise, so a store on the other theme family never has
+    this markup declared at all.
+
+    This used to live in default.xml alongside the other family's mount, with a
+    PHP guard meant to suppress whichever one was wrong. The guard could not work
+    — see Observer/AddLayoutHandles for why — and both mounts rendered.
+-->
+<page xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:noNamespaceSchemaLocation="urn:magento:framework:View/Layout/etc/page_configuration.xsd">
+    <body>
+        <!--
+            Override Hyvä's own header-search block (Magento_Theme::html/header/search-form.phtml)
+            with our own copy of that same template, which adds live token refresh
+            (so it survives full-page caching) and the /fs/search URL sync. This
+            previously pointed at FalcoSense_Search::search/search-form.phtml, a file
+            that was never created, so the override silently never applied and the
+            theme's original template kept rendering instead.
+        -->
+        <referenceBlock name="header-search"
+                        class="FalcoSense\Search\Block\HeaderSearchForm"
+                        template="FalcoSense_Search::html/header/search-form.phtml">
+            <block class="Magento\Framework\View\Element\Template"
+                   name="header_filters_desktop"
+                   template="FalcoSense_Search::html/header/filters-desktop.phtml"/>
+            <block class="Magento\Framework\View\Element\Template"
+                   name="header_filters_mobile"
+                   template="FalcoSense_Search::html/header/filters-mobile.phtml"/>
+            <block class="Magento\Framework\View\Element\Template"
+                   name="header_zero_results"
+                   template="FalcoSense_Search::html/header/zero-results.phtml"/>
+            <block class="FalcoSense\Search\Block\ProductCard"
+                   name="header_product_card_desktop"
+                   template="FalcoSense_Search::html/header/product-card-desktop.phtml"/>
+            <block class="FalcoSense\Search\Block\ProductCard"
+                   name="header_product_card_mobile"
+                   template="FalcoSense_Search::html/header/product-card-mobile.phtml"/>
+        </referenceBlock>
+    </body>
+</page>

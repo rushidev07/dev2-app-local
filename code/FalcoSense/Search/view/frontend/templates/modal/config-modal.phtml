@@ -492,7 +492,8 @@ function ahySmartSearchCfgModal(productDetailUrl, searchToken, addToCartUrl) {
 }
 </script>
 
-<div id="ahySmartSearchCfgModalEl"
+<!-- .fs-root — the isolation boundary; see fs-base.css. -->
+<div id="ahySmartSearchCfgModalEl" class="fs-root"
      x-data="ahySmartSearchCfgModal('<?= $escaper->escapeJs($productDetailUrl) ?>', '<?= $escaper->escapeJs($searchToken) ?>', '<?= $escaper->escapeJs($addToCartUrl) ?>')"
      x-init="init()"
      x-cloak
@@ -500,44 +501,44 @@ function ahySmartSearchCfgModal(productDetailUrl, searchToken, addToCartUrl) {
      :style="visible ? 'position:fixed;inset:0;z-index:999997;display:block' : 'display:none'">
 
     <!-- Backdrop -->
-    <div class="absolute inset-0 transition-opacity bg-gray-500 bg-opacity-75" @click="closeModal()"></div>
+    <div class="fs-cfg__scrim" @click="closeModal()"></div>
 
     <!-- Panel -->
     <div style="position:absolute;right:0;top:0;bottom:0;width:100%;max-width:32rem;background:#fff;overflow-y:auto;display:flex;flex-direction:column;box-shadow:-4px 0 32px rgba(0,0,0,0.18)"
          @keydown.escape.window="closeModal()">
 
         <!-- Header -->
-        <div class="flex items-start justify-between px-5 pt-5 pb-4 shrink-0">
-            <div class="pr-4 flex-1">
-                <h2 class="font-bold text-gray-900 text-lg leading-snug" x-text="product && product.name"></h2>
-                <p class="text-sm text-gray-500 mt-0.5"
-                   x-text="product && 'Sold And Shipped By ' + (product.brand || 'The Everest Marketplace')"></p>
-                <p x-show="loading" class="text-xs text-ahy-blue mt-1 animate-pulse">Loading options…</p>
+        <div class="fs-cfg__head">
+            <div class="fs-cfg__head-text">
+                <h2 class="fs-cfg__title" x-text="product && product.name"></h2>
+                <p class="fs-cfg__subtitle"
+                   x-show="product && FalcoSense.soldBy(product.brand, 'Sold And Shipped By')" x-text="product ? FalcoSense.soldBy(product.brand, 'Sold And Shipped By') : ''"></p>
+                <p x-show="loading" class="fs-cfg__loading-note fs-pulse">Loading options…</p>
             </div>
-            <button @click="closeModal()" class="shrink-0 w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-700 text-xl mt-0.5">&#x2715;</button>
+            <button @click="closeModal()" class="fs-cfg__close">&#x2715;</button>
         </div>
 
         <!-- Image gallery -->
-        <div class="flex gap-3 px-5 pb-4 shrink-0">
+        <div class="fs-cfg__gallery">
             <!-- Thumbnails: always the full parent + every-variant image set.
                  Keyed by the URL itself (not array index) — the gallery array gets
                  replaced/reordered as data streams in (stub → parent gallery →
                  appended variant images), and index-keying let Alpine reuse a
                  slot's DOM node for a completely different underlying URL as that
                  happened, which is what caused thumbnails/selection to flash. -->
-            <div class="ahy-thumb-strip flex flex-col gap-2 w-16 shrink-0 overflow-y-auto" style="max-height:320px">
+            <div class="fs-cfg__thumbs" style="max-height:320px">
                 <template x-for="img in gallery" :key="img">
                     <button @click="image = img"
-                            class="relative w-16 h-16 rounded-lg border-2 p-1 shrink-0 flex items-center justify-center overflow-hidden"
+                            class="fs-cfg__thumb"
                             :class="image === img ? 'border-ahy-blue' : 'border-gray-200 hover:border-gray-400'">
                         <!-- The <img> itself is NEVER display:none'd (x-show/display:none on an
                              element with loading="lazy" stops the browser's lazy-load intersection
                              check from ever triggering, so it would never actually load) — it always
                              loads in place, and the skeleton just paints on top of it until ready. -->
-                        <img :src="img" class="w-full h-full object-contain"
+                        <img :src="img" class="fs-cfg__thumb-img"
                              @load="loadedImages[img] = true"
                              @error="_removeImage(img)"/>
-                        <div x-show="!loadedImages[img]" class="absolute inset-1 rounded bg-gray-200 animate-pulse"></div>
+                        <div x-show="!loadedImages[img]" class="fs-skeleton fs-skeleton--fill-1"></div>
                     </button>
                 </template>
             </div>
@@ -546,64 +547,64 @@ function ahySmartSearchCfgModal(productDetailUrl, searchToken, addToCartUrl) {
                  to simply rendering nothing here — never a placeholder graphic. While
                  a real URL is set but hasn't actually finished loading yet, a skeleton
                  overlays it (image keeps loading underneath, never display:none'd). -->
-            <div class="flex-1 bg-gray-50 rounded-xl flex items-center justify-center relative" style="min-height:260px;max-height:320px">
+            <div class="fs-cfg__stage" style="min-height:260px;max-height:320px">
                 <template x-if="image">
-                    <img :src="image" class="max-h-72 w-full object-contain p-4" loading="eager" style="max-width: 300px"
+                    <img :src="image" class="fs-cfg__image" loading="eager" style="max-width: 300px"
                          @load="loadedImages[image] = true"
                          @error="_removeImage(image)"/>
                 </template>
-                <div x-show="image && !loadedImages[image]" class="absolute inset-4 rounded-lg bg-gray-200 animate-pulse"></div>
+                <div x-show="image && !loadedImages[image]" class="fs-skeleton fs-skeleton--lg fs-skeleton--fill-4"></div>
             </div>
         </div>
 
         <!-- Price -->
-        <div class="px-5 pb-2 shrink-0">
+        <div class="fs-cfg__price-row">
             <template x-if="hasSpecialPrice()">
                 <div>
-                    <p class="text-ahy-red font-bold text-sm">Deal</p>
-                    <div class="flex items-baseline gap-3">
-                        <span class="text-4xl font-extrabold text-ahy-blue" x-html="hyva.formatPrice(getPrice())"></span>
-                        <span class="text-lg text-gray-400 line-through"
+                    <p class="fs-cfg__save">Deal</p>
+                    <div class="fs-row fs-row--baseline">
+                        <span class="fs-cfg__price" x-html="hyva.formatPrice(getPrice())"></span>
+                        <span class="fs-cfg__price-was"
                               x-html="hyva.formatPrice(selectedVariant ? selectedVariant.price : (product && product.price))"></span>
                     </div>
                 </div>
             </template>
             <template x-if="!hasSpecialPrice()">
                 <div>
-                    <p class="text-ahy-red font-bold text-sm">From</p>
-                    <span class="text-4xl font-extrabold text-ahy-blue" x-html="hyva.formatPrice(getPrice())"></span>
+                    <p class="fs-cfg__save">From</p>
+                    <span class="fs-cfg__price" x-html="hyva.formatPrice(getPrice())"></span>
                 </div>
             </template>
             <a :href="product ? '/' + (product.url_key || '') + '.html#shipping' : '#'"
-               class="inline-block mt-2 text-ahy-blue font-semibold text-sm underline">Shipping &amp; Returns</a>
+               class="fs-cfg__link">Shipping &amp; Returns</a>
         </div>
 
         <!-- Attribute selectors -->
-        <div class="px-5 pb-4 flex-1 space-y-5">
-            <hr class="border-gray-200 my-3">
+        <div class="fs-cfg__body">
+            <hr class="fs-cfg__divider">
             <!-- Loading skeleton -->
             <template x-if="loading && attrGroups.length === 0">
-                <div class="space-y-4 animate-pulse">
-                    <div class="h-4 bg-gray-200 rounded w-1/4"></div>
-                    <div class="flex gap-2">
-                        <div class="h-9 bg-gray-200 rounded-lg w-16"></div>
-                        <div class="h-9 bg-gray-200 rounded-lg w-16"></div>
-                        <div class="h-9 bg-gray-200 rounded-lg w-16"></div>
+                <div class="fs-skeleton-stack fs-pulse">
+                    <div class="fs-skeleton fs-skeleton--bar"></div>
+                    <div class="fs-row">
+                        <div class="fs-skeleton fs-skeleton--chip"></div>
+                        <div class="fs-skeleton fs-skeleton--chip"></div>
+                        <div class="fs-skeleton fs-skeleton--chip"></div>
                     </div>
                 </div>
             </template>
             <template x-for="(attr, attrIdx) in attrGroups" :key="attr.label">
                 <div>
-                    <hr x-show="attrIdx > 0" class="border-gray-200 my-3">
-                    <p class="text-sm font-semibold text-gray-700 mb-2">
+                    <hr x-show="attrIdx > 0" class="fs-cfg__divider">
+                    <p class="fs-cfg__label">
                         <span x-text="attr.label"></span>
-                        <span class="font-bold text-gray-900" x-show="selectedAttrs[attr.label]" x-text="': ' + (selectedAttrs[attr.label] || '')"></span>
+                        <span class="fs-strong" x-show="selectedAttrs[attr.label]" x-text="': ' + (selectedAttrs[attr.label] || '')"></span>
                     </p>
-                    <div class="flex flex-wrap gap-2">
+                    <div class="fs-row fs-row--wrap">
                         <template x-for="val in attr.values" :key="val">
                             <button @click="isValueAvailable(attr.label, val) && selectAttr(attr.label, val)"
                                     :disabled="!isValueAvailable(attr.label, val)"
-                                    class="px-4 py-2 text-sm border-2 rounded-lg font-medium transition"
+                                    class="fs-cfg__swatch"
                                     :class="isSelected(attr.label, val)
                                         ? 'border-ahy-blue text-ahy-blue font-bold bg-blue-50'
                                         : isValueAvailable(attr.label, val)
@@ -614,27 +615,27 @@ function ahySmartSearchCfgModal(productDetailUrl, searchToken, addToCartUrl) {
                     </div>
                 </div>
             </template>
-            <hr class="border-gray-200 my-3">
+            <hr class="fs-cfg__divider">
         </div>
 
         <!-- Add to Cart -->
-        <div class="px-5 pb-6 pt-4 shrink-0 bg-white sticky bottom-0">
+        <div class="fs-cfg__footer">
             <button @click.prevent="addToCart()"
                     :disabled="!_allSelected() || cartLoading"
-                    class="w-full text-white rounded-full py-4 text-lg font-bold flex items-center justify-center gap-3 transition"
+                    class="fs-cfg__submit"
                     :class="(_allSelected() && !cartLoading) ? 'opacity-100 hover:opacity-90' : 'opacity-50 cursor-not-allowed'"
                     style="background-color:#e63232">
                 <template x-if="cartLoading">
-                    <svg class="animate-spin w-6 h-6" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 22 6.477 22 12h-4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/></svg>
+                    <svg class="fs-icon fs-icon--spin fs-icon--xl" fill="none" viewBox="0 0 24 24"><circle class="fs-spinner__track" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="fs-spinner__head" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 22 6.477 22 12h-4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/></svg>
                 </template>
                 <template x-if="!cartLoading">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg class="fs-icon fs-icon--xl" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/>
                     </svg>
                 </template>
                 <span x-text="cartLoading ? 'Adding…' : 'Add'"></span>
             </button>
-            <p x-show="attrGroups.length > 0 && !_allSelected()" class="text-center text-xs text-gray-400 mt-2">Please select all options above</p>
+            <p x-show="attrGroups.length > 0 && !_allSelected()" class="fs-cfg__note">Please select all options above</p>
         </div>
 
     </div><!-- /panel -->

@@ -59,10 +59,30 @@ class HeaderSearchForm extends Template
     {
         $layout = $this->getLayout();
 
-        if ($layout
-            && $this->getNameInLayout() !== self::PRIMARY_BLOCK_NAME
-            && $layout->getBlock(self::PRIMARY_BLOCK_NAME)
-        ) {
+        /*
+         * hasElement(), not getBlock().
+         *
+         * getBlock() only sees blocks Magento has already GENERATED. This mount
+         * lives in "header.container", which renders early in page-wrapper —
+         * before the theme's own header tree (and therefore before
+         * "header-search") has been generated. So getBlock() returned null here,
+         * the guard passed, and BOTH mounts rendered: the Hyva one correctly
+         * inside the header, and this one as a bare full-width child of
+         * page-wrapper, which showed as an empty full-bleed panel.
+         *
+         * hasElement() inspects the merged layout STRUCTURE instead, so it gives
+         * the same answer no matter when this block happens to render.
+         *
+         * getBlock() is kept as a fallback for layout implementations that do not
+         * expose hasElement().
+         */
+        $primaryDeclared = $layout
+            && (
+                (method_exists($layout, 'hasElement') && $layout->hasElement(self::PRIMARY_BLOCK_NAME))
+                || $layout->getBlock(self::PRIMARY_BLOCK_NAME)
+            );
+
+        if ($primaryDeclared && $this->getNameInLayout() !== self::PRIMARY_BLOCK_NAME) {
             return '';
         }
 
