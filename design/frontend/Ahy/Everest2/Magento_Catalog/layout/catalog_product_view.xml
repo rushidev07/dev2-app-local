@@ -165,7 +165,7 @@
                     <argument name="page_size" xsi:type="number">12</argument>
                 </arguments>
             </block>
-           <block class="Magento\Catalog\Block\Product\View" name="pdp.cart.carousel" template="Magento_Catalog::product/view/pdp-cart-carousel.phtml" after="-"/>
+           <block class="Ahy\ThemeCustomization\Block\Product\View\CartCarousel" name="pdp.cart.carousel" template="Magento_Catalog::product/view/pdp-cart-carousel.phtml" after="-"/>
         </referenceBlock>
 
         <referenceContainer name="before.body.end">

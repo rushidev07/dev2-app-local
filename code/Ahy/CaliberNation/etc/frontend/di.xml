@@ -1,0 +1,20 @@
+<?xml version="1.0"?>
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="urn:magento:framework:ObjectManager/etc/config.xsd">
+    <!-- Header cumulative-savings badge: per-customer data section (FPC-safe).
+         Section name: caliber-nation-savings. -->
+    <type name="Magento\Customer\CustomerData\SectionPool">
+        <arguments>
+            <argument name="sectionSourceMap" xsi:type="array">
+                <item name="caliber-nation-savings" xsi:type="string">Ahy\CaliberNation\CustomerData\MemberSavings</item>
+            </argument>
+        </arguments>
+    </type>
+
+    <!-- Member-only PDP: redirect guests and non-members to 404 when they navigate
+         directly to a member-only product URL, bypassing the collection filter. -->
+    <type name="Magento\Catalog\Controller\Product\View">
+        <plugin name="ahy_caliber_nation_member_only_product_view"
+                type="Ahy\CaliberNation\Plugin\MemberOnlyProductView"/>
+    </type>
+</config>

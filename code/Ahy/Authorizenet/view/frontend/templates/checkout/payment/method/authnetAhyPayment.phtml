@@ -1,5 +1,23 @@
+<?php
+
+/** @var \Ahy\Authorizenet\ViewModel\Checkout\CustomerSession $viewModel */
+/** @var \Ahy\SavedCC\ViewModel\ConfigProvider $configProvider */
+
+$viewModel = $block->getData('viewModel');
+$isLoggedInUser = $viewModel->isLoggedIn();
+$configProvider = $block->getData('configProvider');
+$isSavedCCEnabled = $configProvider->isEnabled();
+
+// Optional (present only when Ahy_CaliberNation is installed): when the membership
+// product is in the cart, the saved card also powers annual auto-renewal, so the
+// save-card checkbox copy is extended to say so.
+$membershipCart = $block->getData('membershipCart');
+$isMembershipInCart = $membershipCart && $membershipCart->isInCart();
+
+?>
+
 <div class="">
-    <div class="component-messenger message mb-4 pl-6 relative warning" 
+    <div class="component-messenger message mb-4 pl-6 relative warning"
         x-data="{
                 component: null,
                 show: false,
@@ -14,23 +32,22 @@
                     })
                 },
                 dispatched: 0
-            }" 
+            }"
         @order:place:error.window="
             component = null
             show = true
             message = Object.assign(message, $event.detail.text)
             dispatched++
-        "  
-        x-bind:data-testid="component ? `${component}-message` : ''" 
-        x-show="show" x-transition:enter="transition ease-in duration-300" 
+        "
+        x-bind:data-testid="component ? `${component}-message` : ''"
+        x-show="show" x-transition:enter="transition ease-in duration-300"
         x-transition:enter-start="opacity-0"
-        x-transition:enter-end="opacity-100" 
-        x-transition:leave="transition ease-out duration-300" 
-        x-transition:leave-start="opacity-100" 
+        x-transition:enter-end="opacity-100"
+        x-transition:leave="transition ease-out duration-300"
+        x-transition:leave-start="opacity-100"
         x-transition:leave-end="opacity-0"
         data-testid="checkout.payment.error-message"
-        x-init="paymentError()"
-    >
+        x-init="paymentError()">
         <span x-text="message.text"></span>
 
         <div class="absolute -left-1.5 -top-1.5" x-show="dispatched >= 2 &amp;&amp; message.type !== 'success'" x-transition.opacity="" x-transition:enter.scale.0.duration.600ms=""
@@ -102,38 +119,33 @@
 
                 return imageMap[this.cardType] || imageMap['Unknown'];
             }
-        }"
-
-    >
+        }">
         <form class="flex flex-wrap gap-3 w-full px-0 sm:px-4 py-5">
             <label class="relative w-full flex flex-col">
                 <span class="font-bold mb-3 text-ahy-blue">Card number</span>
-                <input 
-                    type="text" 
+                <input
+                    type="text"
                     @input="cardNumber = $event.target.value.replace(/\W/gi, '').replace(/(.{4})/g, '$1 ').trim()"
                     :value="cardNumber"
                     maxlength="19"
                     wire:model.lazy="cardNumber"
-                    x-model="cardNumber" 
+                    x-model="cardNumber"
                     x-on:keyup="checkCardType"
                     oninput="this.value = this.value.replace(/[^0-9\s]/g, '')"
                     placeholder="xxxx xxxx xxxx xxxx"
                     name="card_number"
-                    class="rounded-md pl-14 md:pl-16 pr-2 py-2 border-2 placeholder-gray-300 focus:ring-transparent !text-ahy-blue !h-16 !border border-ahy-gray focus:border-ahy-blue"
-                />
+                    class="rounded-md pl-14 md:pl-16 pr-2 py-2 border-2 placeholder-gray-300 focus:ring-transparent !text-ahy-blue !h-16 !border border-ahy-gray focus:border-ahy-blue" />
                 <img x-bind:src="getCardImage()" alt="Credit Card"
-                    class="absolute bottom-0 left-0 -mb-0.5 transform translate-x-1/3 -translate-y-full text-black peer-placeholder-shown:text-gray-300 w-8"
-                >
+                    class="absolute bottom-0 left-0 -mb-0.5 transform translate-x-1/3 -translate-y-full text-black peer-placeholder-shown:text-gray-300 w-8">
             </label>
 
             <div class="expire-date flex flex-col w-full md:w-1/2">
                 <div class="font-bold mb-3 text-ahy-blue">Expire date</div>
                 <div class="flex items-center gap-2">
                     <label class="relative flex m-0 flex-col w-1/2">
-                        <select 
-                            class="!rounded-md peer pl-4 pr-2 py-2 placeholder-gray-300 focus:ring-transparent !text-ahy-blue !h-16 !border border-ahy-gray focus:border-ahy-blue" 
-                            id="month" name="month" wire:model.lazy="expireMonth"
-                        >
+                        <select
+                            class="!rounded-md peer pl-4 pr-2 py-2 placeholder-gray-300 focus:ring-transparent !text-ahy-blue !h-16 !border border-ahy-gray focus:border-ahy-blue"
+                            id="month" name="month" wire:model.lazy="expireMonth">
                             <option selected="selected">Month</option>
                             <?php for ($i = 1; $i <= 12; $i++) : ?>
                                 <option value="<?php echo str_pad($i, 2, '0', STR_PAD_LEFT); ?>"><?php echo str_pad($i, 2, '0', STR_PAD_LEFT); ?></option>
@@ -142,16 +154,15 @@
                     </label>
 
                     <label class="relative flex m-0 flex-col w-1/2">
-                        <select 
-                            class="!rounded-md peer pl-4 pr-2 py-2 border-2 placeholder-gray-300 focus:ring-transparent !text-ahy-blue !h-16 !border border-ahy-gray focus:border-ahy-blue" 
-                            id="year" name="year" wire:model.lazy="expireYear"
-                        >
+                        <select
+                            class="!rounded-md peer pl-4 pr-2 py-2 border-2 placeholder-gray-300 focus:ring-transparent !text-ahy-blue !h-16 !border border-ahy-gray focus:border-ahy-blue"
+                            id="year" name="year" wire:model.lazy="expireYear">
                             <?php
-                                $currentYear = date('Y');
-                                $endYear = $currentYear + 20;
+                            $currentYear = date('Y');
+                            $endYear = $currentYear + 20;
                             ?>
                             <option selected="selected">Year</option>
-                            <?php for ($year = $currentYear; $year <= $endYear; $year++) :?>
+                            <?php for ($year = $currentYear; $year <= $endYear; $year++) : ?>
                                 <option value="<?php echo $year; ?>"><?php echo $year; ?></option>
                             <?php endfor; ?>
                         </select>
@@ -159,7 +170,6 @@
 
                 </div>
             </div>
-        
             <label class="relative flex-1 flex flex-col">
                 <span class="font-bold flex text-ahy-blue items-center gap-3 mb-3">
                     CVV
@@ -183,15 +193,51 @@
                     maxlength="4"
                     oninput="this.value = this.value.replace(/[^0-9\s]/g, '')"
                     placeholder="&bull;&bull;&bull;"
-                    wire:model.lazy="cardCvv"
-                />
+                    wire:model.lazy="cardCvv" />
                 <svg xmlns="http://www.w3.org/2000/svg" class="absolute bottom-0 left-0 -mb-0.5 transform translate-x-1/2 -translate-y-[90%] text-black peer-placeholder-shown:text-gray-300 h-6 w-6" fill="none"
                     viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                 </svg>
             </label>
+            <?php if ($isLoggedInUser && $isSavedCCEnabled): ?>
+    <div class="w-full"
+         x-data="{ saveCard: true }"
+         x-init="$nextTick(() => $wire.set('checkboxChecked', saveCard))">
+
+        <!-- Checkbox -->
+        <label class="flex items-center gap-3 mt-2 cursor-pointer">
+            <input
+                type="checkbox"
+                x-model="saveCard"
+                @change="$wire.set('checkboxChecked', saveCard)"
+                class="h-5 w-5 rounded border-gray-300 text-ahy-blue focus:ring-ahy-blue" />
+            <span class="text-sm text-ahy-blue">
+                <?php if ($isMembershipInCart): ?>
+                    Save this card securely for future purchases and annual membership auto-renewal
+                <?php else: ?>
+                    Save this card securely for future purchases
+                <?php endif; ?>
+            </span>
+        </label>
+
+        <!-- Message -->
+        <div x-show="saveCard" x-transition class="mt-6">
+            <label class="block text-sm">
+                <sup class="text-red-500">*</sup>
+                <span class="italic text-red-500">
+                    <?php if ($isMembershipInCart): ?>
+                        This card will be securely saved to your account and used to auto-renew your Caliber Nation membership each year. Manage auto-renew anytime from your account.
+                    <?php else: ?>
+                        This card will be securely saved to your account after payment completion for future use.
+                    <?php endif; ?>
+                </span>
+            </label>
+        </div>
+
+    </div>
+<?php endif; ?>
         </form>
-    </div>  
+    </div>
 </div>
 <style>
     .ahy-tooltip {
@@ -208,7 +254,7 @@
     }
 
     .ahy-tooltip .ahy-tooltip-text {
-        display:none;
+        display: none;
         width: 300px;
         position: absolute;
         z-index: 1;
@@ -231,12 +277,12 @@
     }
 
     .ahy-tooltip:hover .ahy-tooltip-text {
-        display:flex;
+        display: flex;
         opacity: 1;
         border-bottom: 5px solid;
     }
 
-    .ahy-tooltip-button button:hover{
+    .ahy-tooltip-button button:hover {
         box-shadow: #0d2f47 0px 0px 0px 1px inset;
     }
 
@@ -244,30 +290,37 @@
         .ahy-tooltip .ahy-tooltip-text {
             width: 250px;
         }
+
         .ahy-tooltip .ahy-tooltip-text::after {
             left: 38% !important;
         }
     }
+
     @media screen and (min-width: 320px) and (max-width: 339px) {
         .ahy-tooltip .ahy-tooltip-text {
             width: 260px;
         }
+
         .ahy-tooltip .ahy-tooltip-text::after {
             left: 38% !important;
         }
     }
+
     @media screen and (min-width: 340px) and (max-width: 369px) {
         .ahy-tooltip .ahy-tooltip-text {
             width: 260px;
         }
+
         .ahy-tooltip .ahy-tooltip-text::after {
             left: 38% !important;
         }
     }
-    @media screen and  (max-width: 767px) {
+
+    @media screen and (max-width: 767px) {
         .ahy-tooltip .ahy-tooltip-text {
             left: 210%;
         }
+
         .ahy-tooltip .ahy-tooltip-text::after {
             left: 33%;
         }

@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<!--
+/**
+ * Copyright © Ahy consulting All rights reserved.
+ * See COPYING.txt for license details.
+ *
+ * Theme override: swap the seller panel title block to a compact template
+ * so Webkul's .wk-mp-page-header-hgroup > .page-title-wrapper > h1 CSS
+ * selector matches, instead of the Everest2 Tailwind-heavy title.phtml.
+ */
+-->
+<page xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:noNamespaceSchemaLocation="urn:magento:framework:View/Layout/etc/page_configuration.xsd">
+    <head>
+        <css src="Webkul_Marketplace::css/seller_panel.css"/>
+    </head>
+    <body>
+        <referenceBlock name="seller.page.main.title"
+                         template="Ahy_CaliberNation::seller/panel_title.phtml"/>
+    </body>
+</page>

@@ -51,11 +51,21 @@
 
     w.ahyModalSearch = 
 function ahyModalSearch(productsApiUrl, searchToken, addToCartUrl) {
-    return {
+    /*
+     * Everything the overlay shares with the results page and the category grid
+     * — fetching, filters, facets, paging, sorting, images — comes from
+     * FalcoSense.listingCore(). What stays below is only what is genuinely the
+     * overlay's: opening and closing, the popular-products carousel and its
+     * drag handling, and scrolling its own panel rather than the page.
+     *
+     * Object.assign puts these last, so anything named here wins over the core.
+     * goToPage does exactly that: the overlay scrolls its panel to the top
+     * rather than scrolling the document to the results.
+     */
+    return Object.assign(w.FalcoSense.listingCore({ pageSize: 12 }), {
         productsApiUrl,
         searchToken,
         addToCartUrl,
-        results: [],
         popularProducts: [],
         popularSearches: [],
         isMobile: window.innerWidth < 768,
@@ -65,24 +75,6 @@ function ahyModalSearch(productsApiUrl, searchToken, addToCartUrl) {
         _popDragStartX: 0,
         _popDragScrollLeft: 0,
         _popDragMoved: false,
-        filters: [],
-        apiFacets: [],
-        activeFilters: [],
-        priceRange: { min: null, max: null },
-        activePriceMin: '',
-        activePriceMax: '',
-        activePriceRange: null,
-        priceCollapsed: false,
-        total: 0,
-        page: 1,
-        pageSize: 12,
-        totalPages: 1,
-        sort: 'relevance',
-        loading: false,
-        error: false,
-        paginationLoading: false,
-        cartLoading: {},
-        wishLoading: {},
         mobileFiltersOpen: false,
         mobileSortOpen: false,
         wasCorrection: false,
@@ -113,16 +105,45 @@ function ahyModalSearch(productsApiUrl, searchToken, addToCartUrl) {
 
             window.addEventListener('ahy-modal-search', (e) => {
                 const q = e.detail.query;
+                /*
+                 * Typing in the header while a listing page is open updates that
+                 * page; it does not raise the overlay on top of results the
+                 * shopper is already reading. The zero-results handoff sets
+                 * force, because there the page has nothing to show.
+                 */
+                if (this._pageOwnsListing() && !(e.detail && e.detail.force)) return;
                 if (q !== this.searchQuery) { this.page = 1; this.sort = 'relevance'; this.activeFilters = []; this.activePriceMin = ''; this.activePriceMax = ''; this.activePriceRange = null; this.wasCorrection = false; this.correctedQuery = ''; }
                 this.searchQuery = q;
                 this.openModal();
                 this.fetch();
             });
-            window.addEventListener('ahy-modal-open', () => { if (this.searchQuery) this.openModal(); });
+            /*
+             * Focus alone never opens the overlay over a listing page. On
+             * /fs/search/?q=tshirt the header input arrives pre-filled, so
+             * clicking it used to cover the 523 results underneath with an
+             * overlay fetching the same 523 results.
+             */
+            window.addEventListener('ahy-modal-open', () => {
+                if (this._pageOwnsListing()) return;
+                if (this.searchQuery) this.openModal();
+            });
             window.addEventListener('ahy-modal-close', () => this.closeModal());
             window.addEventListener('resize', () => { this.isMobile = window.innerWidth < 768; });
             window.addEventListener('mousemove', (e) => this._popDragMove(e));
             window.addEventListener('mouseup', () => this._popDragEnd());
+        },
+
+        /**
+         * True when a FalcoSense listing is already rendering on this page.
+         *
+         * Marked with data-fs-listing by search/results.phtml and
+         * category/results.phtml rather than sniffed from the URL, because the
+         * routes differ per storefront (/fs/search/, /catalogsearch/result/, a
+         * custom one) while the marker travels with the component that actually
+         * owns the page.
+         */
+        _pageOwnsListing() {
+            return !!document.querySelector('[data-fs-listing]');
         },
 
         openModal() {
@@ -144,82 +165,6 @@ function ahyModalSearch(productsApiUrl, searchToken, addToCartUrl) {
             }
         },
 
-        async fetch() {
-            this.loading = true;
-            try {
-                const url = new URL(this.productsApiUrl);
-                url.searchParams.set('search_token', this.searchToken);
-                url.searchParams.set('q', this.wasCorrection && this.correctedQuery ? this.correctedQuery : this.searchQuery);
-                url.searchParams.set('page', this.page);
-                url.searchParams.set('per_page', this.pageSize);
-                url.searchParams.set('include_variants', '1');
-                /*
-                 * Grouped by key, joined with the unit separator — identical to
-                 * web/js/plp/search-results.js.
-                 *
-                 * This used to be `forEach(f => set(f.key, f.value))`, which calls
-                 * set() once per filter. set() REPLACES any existing value for that
-                 * key, so selecting two values of the same facet (Black and Camo)
-                 * sent only the last one — the overlay silently dropped every
-                 * multi-select filter. The results page never had this bug, which is
-                 * why the two surfaces disagreed on counts.
-                 */
-                const filterMap = {};
-                this.activeFilters.forEach(f => {
-                    if (!filterMap[f.key]) filterMap[f.key] = [];
-                    filterMap[f.key].push(f.value);
-                });
-                Object.entries(filterMap).forEach(([key, vals]) => url.searchParams.set(key, vals.join('\x1F')));
-                if (this.activePriceMin !== '') url.searchParams.set('price_min', this.activePriceMin);
-                if (this.activePriceMax !== '') url.searchParams.set('price_max', this.activePriceMax);
-                if (this.sort !== 'relevance') url.searchParams.set('sort', this.sort);
-
-                let resp = await window.fetch(url.toString(), { credentials: 'include', cache: 'no-store' });
-                if (resp.status === 401) {
-                    await window.ahyTokenRefresh.refresh();
-                    url.searchParams.set('search_token', this.searchToken);
-                    resp = await window.fetch(url.toString(), { credentials: 'include', cache: 'no-store' });
-                }
-                const data = await resp.json();
-
-                if (data.success) {
-                    this.error         = false;
-                    this.results       = data.data || [];
-                    this.total         = (data.pagination && data.pagination.total) || data.total || 0;
-                    this.pageSize      = (data.pagination && data.pagination.per_page) || this.pageSize;
-                    this.totalPages    = Math.max(1, Math.ceil(this.total / this.pageSize));
-                    this.apiFacets     = data.facets || [];
-                    this.wasCorrection = !!data.was_corrected;
-                    this.correctedQuery = data.corrected_query || this.searchQuery;
-                    this.originalQuery  = data.original_query  || this.searchQuery;
-                    this.suggestedQuery = data.suggested_query || '';
-                    this.buildFilters();
-                    if (this.results.length === 0) { this.fetchPopularProducts(); this.fetchPopularSearches(); }
-
-                    /*
-                     * Host extension point — same call the results-page and
-                     * category components make. Without it the overlay was the
-                     * one surface enrichers could not reach, which is why
-                     * Everest's star ratings and member prices had to be wired
-                     * in by forking this component into the theme.
-                     */
-                    if (window.FalcoSense) window.FalcoSense._runEnrichers(this.results, this);
-                } else {
-                    /*
-                     * Without this branch a failed API response fell through with
-                     * results still empty, so the overlay showed "no matches were
-                     * found" for a query that has results. See the equivalent
-                     * handling in web/js/plp/search-results.js.
-                     */
-                    this.error = true;
-                    console.error('[AhyModal] Search API error:', data);
-                }
-            } catch(e) {
-                this.error = true;
-                console.error('[AhyModal] fetch error', e);
-            }
-            this.loading = false;
-        },
 
         async fetchPopularProducts() {
             if (this.popularProducts.length) return;
@@ -256,22 +201,7 @@ function ahyModalSearch(productsApiUrl, searchToken, addToCartUrl) {
             } catch(e) { console.error('[PopularSearches] fetch error', e); }
         },
 
-        buildFilters() {
-            if (!this.apiFacets.length) return;
-            const priceFacet = this.apiFacets.find(f => f.key === 'price');
-            if (priceFacet) this.priceRange = { min: priceFacet.min ?? null, max: priceFacet.max ?? null };
-            this.filters = this.apiFacets
-                .filter(f => f.key !== 'price' && f.key !== 'category')
-                .map(f => ({
-                    key:       f.key,
-                    label:     f.key === 'brand' ? 'Shop By Brand' : f.label,
-                    collapsed: false,
-                    showAll:   false,
-                    options:   (f.options || []).map(o => ({ value: o.value, count: o.count })),
-                }));
-        },
 
-        sortedResults() { return this.results; },
 
         searchExact(q) {
             window.location.href = '/catalogsearch/result/?q=' + encodeURIComponent(q);
@@ -315,84 +245,14 @@ function ahyModalSearch(productsApiUrl, searchToken, addToCartUrl) {
             this._animateScrollTo(y);
         },
 
-        toggleFilter(key, label, value) {
-            const idx = this.activeFilters.findIndex(f => f.key === key && f.value === value);
-            if (idx >= 0) this.activeFilters.splice(idx, 1);
-            else this.activeFilters.push({ key, label, value });
-            this.page = 1;
-            this._scrollToResults();
-            this.fetch();
-        },
 
-        removeFilter(key, value) {
-            this.activeFilters = this.activeFilters.filter(f => !(f.key === key && f.value === value));
-            this.page = 1; this._scrollToResults(); this.fetch();
-        },
 
-        applyPriceFilter() { this.page = 1; this._scrollToResults(); this.fetch(); },
-        clearPriceFilter() { this.activePriceMin = ''; this.activePriceMax = ''; this.activePriceRange = null; this.page = 1; this._scrollToResults(); this.fetch(); },
-        clearAllFilters() { this.activeFilters = []; this.activePriceMin = ''; this.activePriceMax = ''; this.activePriceRange = null; this.page = 1; this._scrollToResults(); this.fetch(); },
 
-        priceRangeBuckets() {
-            if (this.priceRange.min === null) return [];
-            return [
-                { label: 'Under $50',     min: '',   max: 50   },
-                { label: '$50 – $100',    min: 50,   max: 100  },
-                { label: '$100 – $250',   min: 100,  max: 250  },
-                { label: '$250 – $500',   min: 250,  max: 500  },
-                { label: '$500 – $1,000', min: 500,  max: 1000 },
-                { label: 'Over $1,000',   min: 1000, max: ''   },
-            ].filter(b => {
-                const lo = b.min === '' ? 0 : b.min;
-                const hi = b.max === '' ? Infinity : b.max;
-                return lo < this.priceRange.max && hi > this.priceRange.min;
-            });
-        },
 
-        togglePriceRange(bucket) {
-            if (this.activePriceRange && this.activePriceRange.label === bucket.label) {
-                this.activePriceRange = null; this.activePriceMin = ''; this.activePriceMax = '';
-            } else {
-                this.activePriceRange = bucket;
-                this.activePriceMin = bucket.min === '' ? '' : String(bucket.min);
-                this.activePriceMax = bucket.max === '' ? '' : String(bucket.max);
-            }
-            this.applyPriceFilter();
-        },
 
-        isFilterActive(key, value) { return this.activeFilters.some(f => f.key === key && f.value === value); },
 
        goToPage(p) { this.page = p; this.paginationLoading = true; this.fetch().then(() => { this.paginationLoading = false; this.$nextTick(() => this._scrollModalToTop()); }); },
-        setSort(val) { this.sort = val; this.page = 1; this.fetch(); },
-        sortLabel() {
-            return { relevance: 'Relevance', price_asc: 'Price: Low to high', price_desc: 'Price: High to low' }[this.sort] || 'Relevance';
-        },
 
-        FALLBACK_IMG: ((window.FalcoSense && window.FalcoSense.config && window.FalcoSense.config.fallbackImage) || ''),
-        isFallbackImg(image) {
-            return this.imgUrl(image) === this.FALLBACK_IMG;
-        },
-        imgUrl(image) {
-            if (!image || image.includes('no_selection')) return this.FALLBACK_IMG;
-            if (image.includes('falcosense/800x800')) return image;
-            const isHttp = image.startsWith('http');
-            const path = isHttp ? image.replace(/^https?:\/\/[^/]+/, '') : image;
-            const m = path.match(/\/catalog\/product\/(.+)$/);
-            if (!m && isHttp) return this.FALLBACK_IMG;
-            const rel = m ? m[1] : path.replace(/^\/+/, '');
-            if (!rel) return this.FALLBACK_IMG;
-            const filename = rel.split('/').pop();
-            if (!filename) return this.FALLBACK_IMG;
-            const c1 = filename[0], c2 = filename[1] || c1;
-            return '/media/falcosense/800x800/' + c1 + '/' + c2 + '/' + filename;
-        },
-        handleImgError(event) {
-            const el = event.target;
-            if (el.dataset.imgFailed) return;
-            el.dataset.imgFailed = '1';
-            el.src = this.FALLBACK_IMG;
-            el.style.opacity = '0.45';
-        },
 
         async addSimpleToCart(product) {
             const pid = product.product_id;
@@ -477,6 +337,33 @@ function ahyModalSearch(productsApiUrl, searchToken, addToCartUrl) {
             const el = this.$refs.popScroll;
             if (el) el.scrollBy({ left: this._popCardWidth(), behavior: 'smooth' });
         },
-    };
+
+        /* ---- hooks into the shared engine --------------------------------- */
+
+        /**
+         * The overlay is the only surface with a free-text query.
+         *
+         * The term is sent as typed. This used to re-send the platform's own
+         * correction back to it, so a correction was applied to an
+         * already-corrected term and the two surfaces could disagree about what
+         * had actually been searched for.
+         */
+        _applyQueryParams(url) {
+            url.searchParams.set('q', this.searchQuery);
+        },
+
+        /** Correction state, and the popular-products fallback when empty. */
+        _afterFetch(data) {
+            this.wasCorrection  = !!data.was_corrected;
+            this.correctedQuery = data.corrected_query || this.searchQuery;
+            this.originalQuery  = data.original_query  || this.searchQuery;
+            this.suggestedQuery = data.suggested_query || '';
+
+            if (this.results.length === 0) {
+                this.fetchPopularProducts();
+                this.fetchPopularSearches();
+            }
+        },
+    });
 }
 })(window);

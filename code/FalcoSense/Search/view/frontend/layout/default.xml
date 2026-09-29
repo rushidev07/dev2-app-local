@@ -33,6 +33,14 @@
             component files only read from it.
         -->
         <script src="FalcoSense_Search::js/plp/runtime.js" defer="true"/>
+
+        <!--
+            The listing engine: the fetch/filter/sort/paginate behaviour the
+            three surfaces share. Declared before them because each one calls
+            FalcoSense.listingCore() at construction. All four are defer, which
+            preserves declaration order.
+        -->
+        <script src="FalcoSense_Search::js/plp/listing-engine.js" defer="true"/>
         <script src="FalcoSense_Search::js/plp/search-results.js" defer="true"/>
         <script src="FalcoSense_Search::js/plp/category-results.js" defer="true"/>
         <script src="FalcoSense_Search::js/plp/modal-search.js" defer="true"/>
@@ -75,6 +83,37 @@
             <block class="FalcoSense\Search\Block\Plp\Config"
                    name="falcosense_plp_config"
                    template="FalcoSense_Search::plp-config.phtml"/>
+
+            <!--
+                Search overlay. Declared here, once, rather than inside the
+                header-search block: a responsive theme mounts the search INPUT
+                several times (Everest's header.phtml calls it three times, one
+                per breakpoint), and while three inputs are correct, three
+                overlays are not — they shared id="ahyModal", which makes every
+                getElementById on it a coin flip.
+
+                The filter, card and zero-result blocks are children of this
+                block because search-overlay.phtml is what renders them.
+            -->
+            <block class="Magento\Framework\View\Element\Template"
+                   name="falcosense_search_overlay"
+                   template="FalcoSense_Search::html/header/search-overlay.phtml">
+            <block class="Magento\Framework\View\Element\Template"
+                   name="header_filters_desktop"
+                   template="FalcoSense_Search::html/header/filters-desktop.phtml"/>
+            <block class="Magento\Framework\View\Element\Template"
+                   name="header_filters_mobile"
+                   template="FalcoSense_Search::html/header/filters-mobile.phtml"/>
+            <block class="Magento\Framework\View\Element\Template"
+                   name="header_zero_results"
+                   template="FalcoSense_Search::html/header/zero-results.phtml"/>
+            <block class="FalcoSense\Search\Block\ProductCard"
+                   name="header_product_card_desktop"
+                   template="FalcoSense_Search::html/header/product-card-desktop.phtml"/>
+            <block class="FalcoSense\Search\Block\ProductCard"
+                   name="header_product_card_mobile"
+                   template="FalcoSense_Search::html/header/product-card-mobile.phtml"/>
+            </block>
 
             <block class="Magento\Framework\View\Element\Template"
                    name="ahy_smartsearch_visitor_cookie"

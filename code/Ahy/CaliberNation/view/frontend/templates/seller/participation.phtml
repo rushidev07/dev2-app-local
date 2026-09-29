@@ -1,0 +1,221 @@
+<?php
+/**
+ * Copyright © Ahy consulting All rights reserved.
+ * See COPYING.txt for license details.
+ *
+ * @var \Ahy\CaliberNation\Block\Seller\Participation $block
+ * @var \Magento\Framework\Escaper $escaper
+ */
+
+$participation   = $block->getParticipation();
+$hasRecord       = $block->hasRecord();
+$isParticipating = $block->isParticipating();
+$discountType    = $participation->getDiscountType() ?: 'percent';
+$discountValue   = $participation->getDiscountValue() ?: '0.00';
+$isEarlyAccess   = (bool) $participation->getIsEarlyAccess();
+$saveUrl         = $block->getSaveUrl();
+
+/** Shared section-header style matching the marketplace dark bar */
+$headerStyle = 'background:#333; color:#fff; padding:10px 15px; font-size:1.4rem;'
+             . 'font-weight:600; display:flex; align-items:center; justify-content:space-between;'
+             . 'margin-bottom:0;';
+?>
+
+<div class="wk-mp-design">
+
+    <?php /* ── Status banner ───────────────────────────────────────────── */ ?>
+    <?php if ($hasRecord && $isParticipating): ?>
+        <div style="background:#2d7a2d; color:#fff; padding:10px 15px; margin-bottom:16px;
+                    display:flex; align-items:center; gap:16px; font-size:1.4rem;">
+            <strong><?= $escaper->escapeHtml(__('Status: Active Participant')) ?></strong>
+            <span style="font-weight:normal; font-size:1.2rem;">
+                <?= $escaper->escapeHtml(__('Discount: %1', $block->getFormattedDiscount())) ?>
+            </span>
+        </div>
+    <?php elseif ($hasRecord): ?>
+        <div style="background:#888; color:#fff; padding:10px 15px; margin-bottom:16px; font-size:1.4rem;">
+            <strong><?= $escaper->escapeHtml(__('Status: Not Participating')) ?></strong>
+        </div>
+    <?php else: ?>
+        <div style="background:#4a6da7; color:#fff; padding:10px 15px; margin-bottom:16px; font-size:1.4rem;">
+            <strong><?= $escaper->escapeHtml(__('Join Caliber Nation')) ?></strong>
+        </div>
+    <?php endif; ?>
+
+    <?php /* ── Participation settings form ───────────────────────────── */ ?>
+    <form action="<?= $escaper->escapeUrl($saveUrl) ?>"
+          method="post"
+          data-mage-init='{"validation":{}}'
+          id="calibernation-participation-form">
+
+        <div class="wk-mp-fieldset" style="margin-bottom:24px; border:1px solid #ddd;">
+
+            <?php /* Section header with inline Save button — matches Webkul dark-bar style */ ?>
+            <div style="<?= /* @noEscape */ $headerStyle ?>">
+                <span><?= $escaper->escapeHtml(__('Participation Settings')) ?></span>
+                <button class="button wk-mp-btn btn btn-primary"
+                        type="submit"
+                        title="<?= $escaper->escapeHtmlAttr(__('Save')) ?>"
+                        style="font-size:14px; padding:8px 16px; border-radius:6px; height:auto;">
+                    <span><span><?= $escaper->escapeHtml(__('Save')) ?></span></span>
+                </button>
+            </div>
+
+            <div style="padding:16px;">
+                <?= $block->getBlockHtml('formkey') ?>
+
+                <div class="field profile required" style="margin-bottom:14px;">
+                    <label for="is_enabled" class="label">
+                        <span><?= $escaper->escapeHtml(__('Participating in Caliber Nation')) ?></span>
+                    </label>
+                    <div class="control">
+                        <select id="is_enabled" name="is_enabled" class="select">
+                            <option value="1" <?= $isParticipating ? 'selected="selected"' : '' ?>>
+                                <?= $escaper->escapeHtml(__('Yes')) ?>
+                            </option>
+                            <option value="0" <?= !$isParticipating ? 'selected="selected"' : '' ?>>
+                                <?= $escaper->escapeHtml(__('No')) ?>
+                            </option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="field profile required" style="margin-bottom:14px;">
+                    <label for="discount_type" class="label">
+                        <span><?= $escaper->escapeHtml(__('Discount Type')) ?></span>
+                    </label>
+                    <div class="control">
+                        <select id="discount_type" name="discount_type" class="select">
+                            <?php foreach ($block->getDiscountTypeOptions() as $value => $label): ?>
+                                <option value="<?= $escaper->escapeHtmlAttr($value) ?>"
+                                    <?= $discountType === $value ? 'selected="selected"' : '' ?>>
+                                    <?= $escaper->escapeHtml($label) ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="field profile required" style="margin-bottom:14px;">
+                    <label for="discount_value" class="label">
+                        <span><?= $escaper->escapeHtml(__('Discount Value')) ?></span>
+                    </label>
+                    <div class="control">
+                        <input type="number"
+                               id="discount_value"
+                               name="discount_value"
+                               class="input-text"
+                               value="<?= $escaper->escapeHtmlAttr(number_format((float)$discountValue, 2)) ?>"
+                               min="0"
+                               step="0.01"
+                               data-validate='{"required-number":true,"validate-number":true,"validate-not-negative-number":true}'/>
+                        <p class="note" id="discount_value_note">
+                            <span><?= $escaper->escapeHtml(__('Enter the discount amount. For percentage type, max is 100.')) ?></span>
+                        </p>
+                    </div>
+                </div>
+
+                <div class="field profile" style="margin-bottom:14px;">
+                    <label for="is_early_access" class="label">
+                        <span><?= $escaper->escapeHtml(__('Early Access')) ?></span>
+                    </label>
+                    <div class="control">
+                        <select id="is_early_access" name="is_early_access" class="select">
+                            <option value="1" <?= $isEarlyAccess ? 'selected="selected"' : '' ?>>
+                                <?= $escaper->escapeHtml(__('Yes')) ?>
+                            </option>
+                            <option value="0" <?= !$isEarlyAccess ? 'selected="selected"' : '' ?>>
+                                <?= $escaper->escapeHtml(__('No')) ?>
+                            </option>
+                        </select>
+                        <p class="note">
+                            <span><?= $escaper->escapeHtml(__('When Yes, all products from this seller are flagged for early access.')) ?></span>
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </form>
+
+    <script>
+    (function () {
+        var typeEl  = document.getElementById('discount_type');
+        var valueEl = document.getElementById('discount_value');
+        var form    = document.getElementById('calibernation-participation-form');
+
+        function applyConstraint() {
+            if (typeEl.value === 'percent') {
+                valueEl.setAttribute('max', '100');
+            } else {
+                valueEl.removeAttribute('max');
+            }
+        }
+
+        typeEl.addEventListener('change', applyConstraint);
+        applyConstraint(); // run on page load
+
+        form.addEventListener('submit', function (e) {
+            if (typeEl.value === 'percent' && parseFloat(valueEl.value) > 100) {
+                e.preventDefault();
+                alert('<?= $escaper->escapeJs(__('Percentage discount cannot exceed 100%.')) ?>');
+                valueEl.focus();
+            }
+        });
+    })();
+    </script>
+
+    <?php /* ── Current participation summary ───────────────────────────── */ ?>
+    <?php if ($hasRecord): ?>
+        <div style="border:1px solid #ddd;">
+            <div style="<?= /* @noEscape */ $headerStyle ?>">
+                <span><?= $escaper->escapeHtml(__('Current Participation Summary')) ?></span>
+            </div>
+            <table style="width:100%; border-collapse:collapse;">
+                <tbody>
+                    <tr>
+                        <td style="padding:12px 15px; border-bottom:1px solid #e8e8e8; font-weight:600; width:40%; background:#f9f9f9;">
+                            <?= $escaper->escapeHtml(__('Status')) ?>
+                        </td>
+                        <td style="padding:12px 15px; border-bottom:1px solid #e8e8e8;">
+                            <?= $isParticipating
+                                ? '<span style="color:#2d7a2d;font-weight:600;">' . $escaper->escapeHtml(__('Active')) . '</span>'
+                                : '<span style="color:#888;">' . $escaper->escapeHtml(__('Inactive')) . '</span>'
+                            ?>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding:12px 15px; border-bottom:1px solid #e8e8e8; font-weight:600; background:#f9f9f9;">
+                            <?= $escaper->escapeHtml(__('Discount Type')) ?>
+                        </td>
+                        <td style="padding:12px 15px; border-bottom:1px solid #e8e8e8;">
+                            <?php
+                            $typeOptions = $block->getDiscountTypeOptions();
+                            echo $escaper->escapeHtml($typeOptions[$discountType] ?? $discountType);
+                            ?>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding:12px 15px; border-bottom:1px solid #e8e8e8; font-weight:600; background:#f9f9f9;">
+                            <?= $escaper->escapeHtml(__('Discount Amount')) ?>
+                        </td>
+                        <td style="padding:12px 15px; border-bottom:1px solid #e8e8e8;">
+                            <?= $escaper->escapeHtml($block->getFormattedDiscount()) ?>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding:12px 15px; font-weight:600; background:#f9f9f9;">
+                            <?= $escaper->escapeHtml(__('Early Access')) ?>
+                        </td>
+                        <td style="padding:12px 15px;">
+                            <?= $isEarlyAccess
+                                ? '<span style="color:#2d7a2d;font-weight:600;">' . $escaper->escapeHtml(__('Yes')) . '</span>'
+                                : '<span style="color:#888;">' . $escaper->escapeHtml(__('No')) . '</span>'
+                            ?>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    <?php endif; ?>
+
+</div>

@@ -1,0 +1,32 @@
+<!--
+/**
+ * Input template for Ahy_PDPRevamp/js/form/element/decimal-input.
+ *
+ * Same markup and bindings as Magento_Ui's own form/element/input.html, plus
+ * two handlers: keypress rejects a character that could not belong to a
+ * decimal number, and input re-cleans the value for the paths a keystroke
+ * never sees (paste, drag-drop, autofill). Kept as type="text" rather than
+ * type="number" - the latter reports an empty value for partial input, which
+ * breaks the change tracking the base Element relies on, and still admits
+ * "e", "+" and "-" in most browsers.
+ */
+-->
+<input class="admin__control-text" type="text"
+    data-bind="
+        event: {
+            change: userChanges,
+            keypress: onKeyPress,
+            input: function (ctx, event) { $data.normalize(event.target.value); return true; }
+        },
+        value: value,
+        hasFocus: focused,
+        valueUpdate: valueUpdate,
+        attr: {
+            name: inputName,
+            placeholder: placeholder,
+            'aria-describedby': noticeId,
+            id: uid,
+            disabled: disabled,
+            maxlength: 255,
+            inputmode: 'decimal'
+    }"/>

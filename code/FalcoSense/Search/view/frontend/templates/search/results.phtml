@@ -162,7 +162,7 @@ body.ahy-search-open .page-layout-3columns .columns .main {
 <?php endif; ?>
 
 <!-- .fs-root — the isolation boundary; see fs-base.css. -->
-<div class="fs-root" x-data="ahySearchResults('<?= $productsApiUrl ?>', '<?= $searchToken ?>', '<?= $searchQuery ?>', <?= $platformStoreId ?>, '<?= $analyticsUrl ?>', '<?= $customerGeoState ?>')"
+<div class="fs-root" data-fs-listing x-data="ahySearchResults('<?= $productsApiUrl ?>', '<?= $searchToken ?>', '<?= $searchQuery ?>', <?= $platformStoreId ?>, '<?= $analyticsUrl ?>', '<?= $customerGeoState ?>')"
     x-init="init()"
    <?php /* Height reserved on our own root while loading — see the equivalent
             note in category/results.phtml for why this no longer writes to the

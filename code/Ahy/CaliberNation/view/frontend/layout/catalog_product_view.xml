@@ -1,0 +1,54 @@
+<?xml version="1.0"?>
+<page xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      layout="1column" xsi:noNamespaceSchemaLocation="urn:magento:framework:View/Layout/etc/page_configuration.xsd">
+    <body>
+        <referenceContainer name="content">
+            <block class="Magento\Framework\View\Element\Template"
+                   name="caliber_nation.pdp.renewal_prompt"
+                   template="Ahy_CaliberNation::cta/renewal-prompt.phtml"
+                   before="-">
+                <arguments>
+                    <argument name="view_model" xsi:type="object">Ahy\CaliberNation\ViewModel\RenewalPrompt</argument>
+                </arguments>
+            </block>
+        </referenceContainer>
+        <!-- Rendered by product-info.phtml via getChildHtml('caliber_nation.member_price'),
+             placed immediately after the price. Declared as a child of product.info so the
+             block resolves for that template's getChildHtml call (Hyva renders children by name). -->
+        <!--
+            Ahy_PDPRevamp ships its own PDP price block (pdprevamp.calibernation.price)
+            which renders a "PRICE: / MSRP:" line and a green member box of its own,
+            driven by its OWN product attributes (caliber_member_discount_*) rather
+            than this module's pricing engine. Two modules printing the price meant
+            the PDP could show it twice, in two different systems' numbers.
+
+            Removing it here makes Caliber Nation the single owner of the PDP price:
+            member-price.phtml renders the green box when a member price applies, and
+            the plain PRICE/MSRP line (same markup PDPRevamp used) when it does not.
+
+            Declared in THIS module deliberately - the dependency belongs with the
+            module that takes over the responsibility. Harmless no-op when
+            Ahy_PDPRevamp is absent, since the block simply will not exist.
+        -->
+        <referenceBlock name="pdprevamp.calibernation.price" remove="true"/>
+
+        <referenceBlock name="product.info">
+            <block class="Magento\Catalog\Block\Product\View"
+                   name="caliber_nation.member_price"
+                   template="Ahy_CaliberNation::product/member-price.phtml">
+                <arguments>
+                    <argument name="memberPriceViewModel" xsi:type="object">Ahy\CaliberNation\ViewModel\MemberProductPrice</argument>
+                </arguments>
+            </block>
+            <!-- Early-access / early-bird badge. Rendered after the member price. -->
+            <block class="Magento\Catalog\Block\Product\View"
+                   name="caliber_nation.early_access_badge"
+                   template="Ahy_CaliberNation::earlyaccess/badge.phtml"
+                   after="caliber_nation.member_price">
+                <arguments>
+                    <argument name="view_model" xsi:type="object">Ahy\CaliberNation\ViewModel\EarlyAccessBadge</argument>
+                </arguments>
+            </block>
+        </referenceBlock>
+    </body>
+</page>

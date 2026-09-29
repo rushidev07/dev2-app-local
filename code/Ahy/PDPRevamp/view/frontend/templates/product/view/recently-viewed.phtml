@@ -1,0 +1,505 @@
+<?php
+/**
+ * PDP "Recently Viewed" carousel. Per-visitor view history has no
+ * server-side/FPC-safe source in this stack, so it's tracked client-side in
+ * localStorage (sku + viewed-at timestamp) and the display data (name,
+ * image, price, rating, brand) for those SKUs is fetched in one call to
+ * Controller\Index\RecentlyViewed.
+ *
+ * Two things previously made this feel unreliable/slow, both addressed
+ * below:
+ *
+ * 1. The fetch only started once Alpine.js had loaded and mounted this
+ *    component (x-init), which happens well after the browser reaches this
+ *    point in the page - so the carousel visibly "popped in" late instead
+ *    of already being ready. The plain <script> right below the <section>
+ *    now starts the request (and records the view) the instant the browser
+ *    parses this far down the page, independent of Alpine - Alpine's own
+ *    init() just picks up that already-in-flight request instead of
+ *    starting a fresh one.
+ *
+ * 2. A single failed request used to blank the whole carousel, even for a
+ *    visitor whose history was otherwise fine. There's now one retry on
+ *    failure, plus a short-lived sessionStorage cache: a cache hit renders
+ *    instantly while the fresh request updates it in the background, and a
+ *    failed fresh request falls back to the last good cached data instead
+ *    of showing nothing.
+ */
+
+declare(strict_types=1);
+
+use Ahy\PDPRevamp\Block\Product\View\RecentlyViewed;
+use Hyva\Theme\Model\ViewModelRegistry;
+use Hyva\Theme\ViewModel\ProductPage;
+use Magento\Catalog\Model\Product;
+
+/** @var RecentlyViewed $block */
+/** @var ViewModelRegistry $viewModels */
+
+/** @var ProductPage $productViewModel */
+$productViewModel = $viewModels->require(ProductPage::class);
+
+/** @var Product $product */
+$product = $productViewModel->getProduct();
+
+$storeCode = $block->getStoreManager()->getStore()->getCode();
+?>
+<script>
+    /**
+     * Runs immediately as the browser parses this point in the page - not
+     * gated behind Alpine.js loading/mounting like everything in
+     * ahyRecentlyViewed() below. Records the view and starts the data
+     * request right away, in parallel with the rest of the page loading,
+     * and stashes the in-flight request on window so the Alpine component
+     * (once it does mount) can just await it instead of starting its own -
+     * turning "wait for Alpine, then wait for the network" into "both run
+     * at the same time".
+     */
+    (function () {
+        var currentSku = '<?= /* @noEscape */ $escaper->escapeJs($product->getSku()) ?>';
+        var storageKey = 'ahy_recently_viewed';
+
+        function readStored() {
+            try {
+                var raw = JSON.parse(localStorage.getItem(storageKey) || '[]');
+                return Array.isArray(raw) ? raw : [];
+            } catch (e) {
+                return [];
+            }
+        }
+
+        var stored = readStored().filter(function (entry) { return entry.sku !== currentSku; });
+        stored.unshift({ sku: currentSku, viewedAt: Date.now() });
+        stored = stored.slice(0, 20);
+        try {
+            localStorage.setItem(storageKey, JSON.stringify(stored));
+        } catch (e) {
+            // storage unavailable (private mode / quota) - view just won't persist
+        }
+
+        var skus = stored.map(function (entry) { return entry.sku; });
+        if (!skus.length) {
+            return;
+        }
+
+        function requestData() {
+            var params = new URLSearchParams();
+            skus.forEach(function (sku) { params.append('skus[]', sku); });
+
+            return fetch(BASE_URL + 'ahyyotpo/index/recentlyviewed?' + params.toString())
+                .then(function (response) {
+                    if (!response.ok) {
+                        throw new Error('recently-viewed fetch failed');
+                    }
+                    return response.json();
+                });
+        }
+
+        window.ahyRecentlyViewedFetch = {
+            skus: skus,
+            // One retry before giving up - shakes off a one-off network
+            // blip without a failed request silently emptying the whole
+            // carousel for what would otherwise be a perfectly fine history.
+            promise: requestData().catch(function () { return requestData(); }).catch(function () { return null; })
+        };
+    })();
+</script>
+<section
+    class="ahy-rv-section"
+    x-data="ahyRecentlyViewed('<?= /* @noEscape */ $escaper->escapeJs($product->getSku()) ?>', '<?= /* @noEscape */ $escaper->escapeJs($storeCode) ?>')"
+    x-init="init()"
+    x-show="items.length > 0"
+    x-cloak
+    @resize.window.debounce="checkOverflow(); updateScrollButtons()"
+>
+<div class="container py-6 ahy-rv-container">
+    <div class="ahy-rv-header flex items-center justify-between gap-3 mb-4">
+        <div class="ahy-rv-header-left flex items-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="ahy-rv-icon shrink-0">
+                <circle cx="12" cy="12" r="10"/>
+                <polyline points="12 6 12 12 16 14"/>
+            </svg>
+            <span class="ahy-rv-title"><?= __('Recently Viewed') ?></span>
+            <span class="ahy-rv-count" x-text="'(' + items.length + ' ' + (items.length === 1 ? '<?= __('item') ?>' : '<?= __('items') ?>') + ')'"></span>
+        </div>
+        <div class="flex items-center gap-1.5 shrink-0" x-show="hasOverflow" x-cloak>
+            <button type="button" @click="scrollByCard(-1)" :disabled="atStart" aria-label="<?= $escaper->escapeHtmlAttr(__('Previous')) ?>" class="ahy-carousel-nav-btn ahy-rv-nav-btn">
+                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+            </button>
+            <button type="button" @click="scrollByCard(1)" :disabled="atEnd" aria-label="<?= $escaper->escapeHtmlAttr(__('Next')) ?>" class="ahy-carousel-nav-btn ahy-rv-nav-btn">
+                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+            </button>
+        </div>
+    </div>
+
+    <div x-ref="track" @scroll.debounce.50ms="updateScrollButtons()" class="ahy-recently-viewed-track flex gap-3 overflow-x-auto snap-x scroll-smooth">
+        <template x-for="entry in items" :key="entry.sku">
+            <a :href="entry.url" class="group ahy-rv-card shrink-0 rounded-lg overflow-hidden" style="scroll-snap-align:start;">
+                <div class="relative overflow-hidden ahy-rv-image-wrap" style="aspect-ratio:1/1;">
+                    <img :src="entry.image" :alt="entry.name" class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" loading="lazy">
+                    <span class="ahy-rv-badge-time" x-text="entry.timeAgo"></span>
+                    <span class="ahy-rv-badge-viewing" x-show="entry.isCurrent" x-cloak><?= __('Viewing') ?></span>
+                </div>
+                <div class="p-2">
+                    <p class="ahy-rv-brand ahy-rv tracking-wider" x-show="entry.brand" x-text="entry.brand"></p>
+                    <p class="ahy-rv-name ahy-rv leading-tight" x-text="entry.name"></p>
+                    <div class="flex items-center justify-between mt-1.5">
+                        <div class="flex items-center ahy-rv-stars" x-show="entry.ratingPercent > 0">
+                            <template x-for="i in 5" :key="i">
+                                <svg width="8" height="8" viewBox="0 0 24 24" stroke-width="2" :fill="i <= Math.round(entry.ratingPercent / 20) ? '#fbbf24' : 'none'" :stroke="i <= Math.round(entry.ratingPercent / 20) ? '#fbbf24' : '#d1d5db'">
+                                    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                                </svg>
+                            </template>
+                        </div>
+                        <div class="ahy-rv-price" x-text="'$' + entry.price.toFixed(2)"></div>
+                    </div>
+                </div>
+            </a>
+        </template>
+    </div>
+</div>
+</section>
+<script>
+    function ahyRecentlyViewed(currentSku, storeCode) {
+        return {
+            items: [],
+            storageKey: 'ahy_recently_viewed',
+            hasOverflow: false,
+            atStart: true,
+            atEnd: false,
+
+            cacheKey: 'ahy_rv_data_cache',
+            cacheTtlMs: 10 * 60 * 1000,
+
+            init() {
+                const early = window.ahyRecentlyViewedFetch;
+                const stored = this.readStored();
+                if (!stored.length) {
+                    return;
+                }
+                const skus = stored.map(entry => entry.sku);
+
+                // Normal path: the plain <script> right above this section
+                // already recorded the view and started the request before
+                // Alpine even finished loading - reuse that in-flight
+                // request instead of firing a second one.
+                //
+                // Fallback path (early script didn't run - blocked, or a
+                // template/layout change moved this section): behave as
+                // before, record the view and fetch from scratch.
+                let fetchPromise;
+                if (early && this.sameSkus(early.skus, skus)) {
+                    fetchPromise = early.promise;
+                } else {
+                    this.recordView(currentSku);
+                    fetchPromise = this.fetchRecentlyViewedData(skus)
+                        .catch(() => this.fetchRecentlyViewedData(skus))
+                        .catch(() => null);
+                }
+
+                // A cache hit renders instantly (no network wait at all) -
+                // the fetch above still runs in the background and quietly
+                // refreshes items once it resolves. On first-ever visit in
+                // a session there's nothing to show yet, so this is a no-op
+                // and the section simply waits for the real response, same
+                // as before.
+                const cached = this.readCache(storeCode);
+                if (cached) {
+                    this.buildItems(stored, cached);
+                }
+
+                fetchPromise.then(itemsBySku => {
+                    if (itemsBySku) {
+                        this.buildItems(stored, itemsBySku);
+                        this.writeCache(storeCode, itemsBySku);
+                        return;
+                    }
+                    // Request failed even after the retry. Leave whatever
+                    // cached data is already on screen rather than blanking
+                    // a carousel that was otherwise fine - only go empty if
+                    // there was never anything to show in the first place.
+                    if (!cached) {
+                        this.items = [];
+                    }
+                });
+            },
+
+            sameSkus(a, b) {
+                return Array.isArray(a) && a.length === b.length && a.every((sku, i) => sku === b[i]);
+            },
+
+            readStored() {
+                try {
+                    const raw = JSON.parse(localStorage.getItem(this.storageKey) || '[]');
+                    return Array.isArray(raw) ? raw : [];
+                } catch (e) {
+                    return [];
+                }
+            },
+
+            recordView(sku) {
+                let stored = this.readStored().filter(entry => entry.sku !== sku);
+                stored.unshift({ sku: sku, viewedAt: Date.now() });
+                stored = stored.slice(0, 20);
+                try {
+                    localStorage.setItem(this.storageKey, JSON.stringify(stored));
+                } catch (e) {
+                    // storage unavailable (private mode / quota) - view just won't persist
+                }
+            },
+
+            readCache(store) {
+                try {
+                    const raw = JSON.parse(sessionStorage.getItem(this.cacheKey) || 'null');
+                    if (!raw || raw.store !== store || Date.now() - raw.ts > this.cacheTtlMs) {
+                        return null;
+                    }
+                    return raw.itemsBySku;
+                } catch (e) {
+                    return null;
+                }
+            },
+
+            writeCache(store, itemsBySku) {
+                try {
+                    sessionStorage.setItem(this.cacheKey, JSON.stringify({ store, ts: Date.now(), itemsBySku }));
+                } catch (e) {
+                    // storage unavailable - background refresh just won't be cached
+                }
+            },
+
+            fetchRecentlyViewedData(skus) {
+                const params = new URLSearchParams();
+                skus.forEach(sku => params.append('skus[]', sku));
+
+                return fetch(BASE_URL + 'ahyyotpo/index/recentlyviewed?' + params.toString())
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error('recently-viewed fetch failed');
+                        }
+                        return response.json();
+                    });
+            },
+
+            buildItems(stored, itemsBySku) {
+                const now = Date.now();
+                this.items = stored
+                    .filter(entry => itemsBySku[entry.sku])
+                    .map(entry => {
+                        const p = itemsBySku[entry.sku];
+                        return {
+                            sku: entry.sku,
+                            name: this.decodeHtmlEntities(p.name),
+                            url: p.url,
+                            image: p.image || '',
+                            price: p.price || 0,
+                            ratingPercent: p.ratingPercent || 0,
+                            brand: p.brand || '',
+                            isCurrent: entry.sku === currentSku,
+                            timeAgo: this.formatTimeAgo(now - entry.viewedAt)
+                        };
+                    });
+                this.$nextTick(() => {
+                    this.checkOverflow();
+                    this.updateScrollButtons();
+                });
+            },
+
+            checkOverflow() {
+                const track = this.$refs.track;
+                this.hasOverflow = !!track && track.scrollWidth > track.clientWidth + 1;
+            },
+
+            updateScrollButtons() {
+                const track = this.$refs.track;
+                if (!track) {
+                    return;
+                }
+                this.atStart = track.scrollLeft <= 1;
+                this.atEnd = track.scrollLeft + track.clientWidth >= track.scrollWidth - 8;
+            },
+
+            formatTimeAgo(diffMs) {
+                const minutes = Math.floor(diffMs / 60000);
+                if (minutes < 1) {
+                    return '<?= __('Now') ?>';
+                }
+                if (minutes < 60) {
+                    return minutes + ' <?= __('min ago') ?>';
+                }
+                const hours = Math.floor(minutes / 60);
+                if (hours < 24) {
+                    return hours + ' <?= __('hr ago') ?>';
+                }
+                return Math.floor(hours / 24) + ' <?= __('days ago') ?>';
+            },
+
+            decodeHtmlEntities(text) {
+                // Defensive: some product names carry literal HTML entities
+                // in their stored data (e.g. "Spice&trade;"). x-text sets
+                // plain textContent, which never decodes entities, so those
+                // would otherwise show up as literal "&trade;" text instead
+                // of ™. A throwaway <textarea> is a safe way to let the
+                // browser do that decoding for us without risking HTML
+                // injection (its value is read back as text, never
+                // inserted as markup).
+                const el = document.createElement('textarea');
+                el.innerHTML = text || '';
+                return el.value;
+            },
+
+            scrollByCard(direction) {
+                const track = this.$refs.track;
+                track.scrollBy({ left: direction * (track.clientWidth * 0.8), behavior: 'smooth' });
+            }
+        };
+    }
+</script>
+<style>
+    @media (max-width: 425px) {
+        .ahy-rv-section .ahy-rv-container {
+            padding-left: 1rem !important;
+            padding-right: 1rem !important;
+        }
+        .ahy-rv-count {
+            font-size: 0.600rem !important; 
+        }
+        /* At the narrowest supported width (320px), icon + title + count +
+           arrows was a few pixels wider than the available row, pushing the
+           second arrow past the edge. Tightening the title and the gaps
+           between elements (rather than shrinking/hiding anything) saves
+           just enough width to keep both arrows fully visible. */
+        .ahy-rv-title {
+            font-size: 0.75rem;
+        }
+        .ahy-rv-header {
+            gap: 0.5rem;
+        }
+        .ahy-rv-header-left {
+            gap: 0.375rem;
+        }
+    }
+    .ahy-recently-viewed-track { scrollbar-width: none; -ms-overflow-style: none; }
+    .ahy-recently-viewed-track::-webkit-scrollbar { display: none; }
+    /* Fixed card width so shrink-0 has something to hold onto in the
+       horizontal-scroll track above - without this, flex items would size
+       to their own content and cards would end up uneven widths. */
+    .ahy-rv-card { width: 150px; }
+    @media (min-width: 768px) {
+        .ahy-rv-card { width: 170px; }
+    }
+    .ahy-carousel-nav-btn:disabled {
+        opacity: 0.3;
+        border-color: transparent;
+        cursor: not-allowed;
+    }
+    .ahy-carousel-nav-btn:disabled:hover {
+        background-color: transparent;
+    }
+
+    .ahy-rv-section {
+        position: relative;
+        z-index: 0;
+    }
+    .ahy-rv-container {
+        padding-left: 0 !important;
+        padding-right: 0 !important;
+    }
+    .ahy-rv-section::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        left: 50%;
+        width: 100vw;
+        transform: translateX(-50%);
+        background-color: #F5F5F0;
+        border-top: 1px solid #e5e7eb;
+        z-index: -1;
+    }
+    .ahy-rv-icon { color: rgba(13,47,71,.5); }
+    .ahy-rv-title {
+        font-size: 0.875rem;
+        font-weight: 700;
+        color: #0d2f47;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        white-space: nowrap;
+    }
+    .ahy-rv-count { font-size: 0.75rem; color: #6b7688; white-space: nowrap; }
+
+    .ahy-rv-nav-btn {
+        width: 1.5rem;
+        height: 1.5rem;
+        border-radius: 9999px;
+        border: 1px solid #e5e7eb;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #0d2f47;
+        transition: all .15s ease;
+    }
+    .ahy-rv-nav-btn:hover {
+        color: #0d2f47;
+        border-color: rgba(13,47,71,.5);
+    }
+
+    .ahy-rv-card {
+        display: block;
+        background: #fff;
+        border: 1px solid #e5e7eb;
+        transition: box-shadow .15s ease, border-color .15s ease;
+    }
+    .ahy-rv-card:hover {
+        box-shadow: 0 4px 12px 0 rgba(0,0,0,.08);
+        border-color: rgba(232,93,38,.3);
+    }
+    .ahy-rv-image-wrap { background: rgba(107,118,136,.1); }
+    .ahy-rv-badge-time {
+        position: absolute;
+        bottom: 0.375rem;
+        right: 0.375rem;
+        font-size: 9px;
+        font-weight: 500;
+        background: rgba(0,0,0,.6);
+        color: #fff;
+        padding: 0.125rem 0.375rem;
+        border-radius: 0.25rem;
+        backdrop-filter: blur(4px);
+    }
+    .ahy-rv-badge-viewing {
+        position: absolute;
+        top: 0.375rem;
+        left: 0.375rem;
+        font-size: 9px;
+        font-weight: 700;
+        background: #e85d26;
+        color: #fff;
+        padding: 0.125rem 0.375rem;
+        border-radius: 0.25rem;
+    }
+    .ahy-rv-brand {
+        font-size: 9px;
+        color: #6b7688;
+        text-transform: uppercase;
+    }
+    .ahy-rv-name {
+        font-size: 11px;
+        font-weight: 600;
+        color: #0d2f47;
+        margin-top: 0.125rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .ahy-rv-stars { gap: 1px; }
+    .ahy-rv-price {
+        font-size: 0.75rem;
+        font-weight: 700;
+        color: #0d2f47;
+        font-family: "DM Mono", monospace;
+    }
+    .ahy-rv{
+        padding: 0 !important;
+    }
+</style>

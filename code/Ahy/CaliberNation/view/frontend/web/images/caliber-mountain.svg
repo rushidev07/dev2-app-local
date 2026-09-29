@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 229 127" fill="none" role="img" aria-label="Caliber Nation">
+  <!--
+    Caliber Nation mountain mark. Traced from docs/image (25).png (483x268);
+    viewBox is the artwork's ink bounding box only (x 0-228, y 141-267 in the
+    source), so the glyph sits flush with no baked-in padding and can be sized
+    purely by width/height at the call site.
+    currentColor lets the mark inherit its colour - brand red on light panels,
+    white when reversed out on the dark card.
+  -->
+  <path fill="currentColor" d="
+    M91 0
+    L129 53
+    L103 90
+    L134 90
+    L167 45
+    L229 127
+    L0 127
+    Z"/>
+</svg>

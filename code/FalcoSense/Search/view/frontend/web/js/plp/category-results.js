@@ -40,38 +40,22 @@
 
     w.ahyCategoryResults = 
 function ahyCategoryResults(productsApiUrl, searchToken, categoryName, platformStoreId, categoryId) {
-    return {
+    /*
+     * Fetching, filters, facets, paging, sorting and image handling come from
+     * FalcoSense.listingCore(). Only what is genuinely the category grid's stays
+     * below: reading and writing its own URL state, the free-shipping badge and
+     * the seller-name cleanup.
+     *
+     * clientPriceFilter preserves this grid's existing behaviour of filtering by
+     * price in the browser as well as at the platform — see the option's note in
+     * listing-engine.js for why that is still here.
+     */
+    return Object.assign(w.FalcoSense.listingCore({ pageSize: 18, clientPriceFilter: true }), {
         productsApiUrl,
         searchToken,
         categoryName,
         platformStoreId,
         categoryId,
-        results: [],
-        cartLoading: {},
-        wishLoading: {},
-        filters: [],
-        apiFacets: [],
-        activeFilters: [],
-        priceRange: { min: null, max: null },
-        activePriceMin: '',
-        activePriceMax: '',
-        activePriceRange: null,
-        priceCollapsed: false,
-        total: 0,
-        page: 1,
-        pageSize: 18,
-        totalPages: 1,
-        sort: 'relevance',
-        loading: true,
-        /*
-         * True when the last fetch FAILED — as distinct from succeeding with zero
-         * products. Without this the two are indistinguishable: both leave results
-         * empty, so an outage renders the same "no matches found" screen as a
-         * genuinely empty result, and a failure mid-session silently leaves the
-         * previous results on screen as if the filter had applied.
-         */
-        error: false,
-        paginationLoading: false,
 
         async _refreshToken() {
             const t = await window.ahyTokenRefresh?.refresh();
@@ -154,116 +138,8 @@ function ahyCategoryResults(productsApiUrl, searchToken, categoryName, platformS
             }
         },
 
-        async fetch() {
-            this.loading = true;
-            try {
-                const url = new URL(this.productsApiUrl);
-                url.searchParams.set('search_token', this.searchToken);
-                url.searchParams.set('category', this.categoryName);
-                // Two categories can share the same name (e.g. a "Featured Products"
-                // subcategory exists under both "Boating Gear" and "Hunting Gear"), so
-                // the name-only filter above matches every same-named category's
-                // products combined. Sending category_ids scopes the match to this
-                // exact category — the API prefers it over the name filter when both
-                // are present (see OpenSearchService's category_ids-first handling).
-                if (this.categoryId) url.searchParams.set('category_ids', this.categoryId);
-                url.searchParams.set('page', this.page);
-                url.searchParams.set('per_page', this.pageSize);
-                // platform_store_id intentionally omitted — getPlatformStoreId()'s
-                // position-based calculation is wrong for single-store-view sites
-                // (always resolves to 1). Omitting it lets the backend fall back to
-                // the store already correctly configured on the API key itself,
-                // same as the header search (search-form.phtml) and search/results.phtml.
 
-                const filterMap = {};
-                this.activeFilters.forEach(f => {
-                    if (f.key === 'category') return;
-                    if (!filterMap[f.key]) filterMap[f.key] = [];
-                    filterMap[f.key].push(f.value);
-                });
-                Object.entries(filterMap).forEach(([key, vals]) => url.searchParams.set(key, vals.join('\x1F')));
-                if (this.activePriceMin !== '') url.searchParams.set('price_min', this.activePriceMin);
-                if (this.activePriceMax !== '') url.searchParams.set('price_max', this.activePriceMax);
-                if (this.sort !== 'relevance') url.searchParams.set('sort', this.sort);
 
-                let resp = await fetch(url.toString(), {credentials: 'include', cache: 'no-store'});
-                if (resp.status === 401) {
-                    await this._refreshToken();
-                    url.searchParams.set('search_token', this.searchToken);
-                    resp = await fetch(url.toString(), {credentials: 'include', cache: 'no-store'});
-                }
-                const data = await resp.json();
-
-                if (data.success) {
-                    this.error = false;
-                    this.results    = data.data || [];
-                    console.log('[Category] product.image samples:', this.results.slice(0,3).map(p => ({sku: p.sku, image: p.image})));
-                    this.total      = (data.pagination && data.pagination.total) || 0;
-                    this.pageSize   = (data.pagination && data.pagination.per_page) || 18;
-                    this.totalPages = Math.max(1, Math.ceil(this.total / this.pageSize));
-                    this.apiFacets  = data.facets || [];
-                    this.buildFilters();
-
-                    /* Host extension point — see FalcoSense.enrich() in runtime.js. */
-                    if (window.FalcoSense) window.FalcoSense._runEnrichers(this.results, this);
-                } else {
-                    this.error = true;
-                        console.error('[SmartSearch] Category API error:', data);
-                }
-            } catch(e) {
-                this.error = true;
-                    console.error('[SmartSearch] Category fetch error', e);
-            }
-            this.loading = false;
-        },
-
-        buildFilters() {
-            if (this.apiFacets.length === 0) return;
-            const priceFacet = this.apiFacets.find(f => f.key === 'price');
-            if (priceFacet) {
-                this.priceRange = { min: priceFacet.min ?? null, max: priceFacet.max ?? null };
-            }
-            const prevState = {};
-            this.filters.forEach(f => { prevState[f.key] = { collapsed: f.collapsed, showAll: f.showAll }; });
-            this.filters = this.apiFacets
-                .filter(f => f.key !== 'price' && f.key !== 'category')
-                .map(f => ({
-                    key:       f.key,
-                    label:     f.key === 'brand' ? 'Shop By Brand' : f.label,
-                    collapsed: prevState[f.key]?.collapsed ?? false,
-                    showAll:   prevState[f.key]?.showAll ?? false,
-                    options:   (f.options || []).map(o => ({ value: o.value, count: o.count })).sort((a, b) => {
-                        const aA = this.activeFilters.some(af => af.key === f.key && af.value === a.value) ? -1 : 1;
-                        const bA = this.activeFilters.some(af => af.key === f.key && af.value === b.value) ? -1 : 1;
-                        return aA - bA;
-                    }),
-                }));
-        },
-
-        sortedResults() {
-            let res = this.results;
-            if (this.activePriceMin !== '' || this.activePriceMax !== '') {
-                const lo = this.activePriceMin !== '' ? parseFloat(this.activePriceMin) : 0;
-                const hi = this.activePriceMax !== '' ? parseFloat(this.activePriceMax) : Infinity;
-                res = res.filter(p => {
-                    const price = parseFloat(
-                        (p.special_price && parseFloat(p.special_price) < parseFloat(p.price))
-                            ? p.special_price : (p.price || 0)
-                    );
-                    return price >= lo && (hi === Infinity || price <= hi);
-                });
-            }
-            if (this.sort === 'relevance') return res;
-            return [...res].sort((a, b) => {
-                const getPrice = p => {
-                    const base = parseFloat(p.price) || 0;
-                    const sp   = parseFloat(p.special_price) || 0;
-                    return (sp > 0 && sp < base) ? sp : base;
-                };
-                const diff = getPrice(a) - getPrice(b);
-                return this.sort === 'price_asc' ? diff : -diff;
-            });
-        },
 
         _scrollToResults() {
             const el = document.querySelector('.column.main');
@@ -272,59 +148,12 @@ function ahyCategoryResults(productsApiUrl, searchToken, categoryName, platformS
             window.scrollTo({ top: y, behavior: 'smooth' });
         },
 
-        toggleFilter(key, label, value) {
-            const idx = this.activeFilters.findIndex(f => f.key === key && f.value === value);
-            if (idx >= 0) this.activeFilters.splice(idx, 1);
-            else this.activeFilters.push({ key, label, value });
-            this.page = 1;
-            this._writeUrl();
-            this._scrollToResults();
-            this.fetch();
-        },
 
-        removeFilter(key, value) {
-            this.activeFilters = this.activeFilters.filter(f => !(f.key === key && f.value === value));
-            this.page = 1;
-            this._writeUrl();
-            this._scrollToResults();
-            this.fetch();
-        },
 
-        applyPriceFilter() { this.page = 1; this._writeUrl(); this._scrollToResults(); this.fetch(); },
-        clearPriceFilter() { this.activePriceMin = ''; this.activePriceMax = ''; this.activePriceRange = null; this.page = 1; this._writeUrl(); this._scrollToResults(); this.fetch(); },
-        clearAllFilters() { this.activeFilters = []; this.activePriceMin = ''; this.activePriceMax = ''; this.activePriceRange = null; this.page = 1; this._writeUrl(); this._scrollToResults(); this.fetch(); },
 
-        priceRangeBuckets() {
-            if (this.priceRange.min === null) return [];
-            const all = [
-                { label: 'Under $50',     min: '',   max: 50   },
-                { label: '$50 – $100',    min: 50,   max: 100  },
-                { label: '$100 – $250',   min: 100,  max: 250  },
-                { label: '$250 – $500',   min: 250,  max: 500  },
-                { label: '$500 – $1,000', min: 500,  max: 1000 },
-                { label: 'Over $1,000',   min: 1000, max: ''   },
-            ];
-            return all.filter(b => {
-                const lo = b.min === '' ? 0 : b.min;
-                const hi = b.max === '' ? Infinity : b.max;
-                return lo < this.priceRange.max && hi > this.priceRange.min;
-            });
-        },
 
-        togglePriceRange(bucket) {
-            if (this.activePriceRange && this.activePriceRange.label === bucket.label) {
-                this.activePriceRange = null; this.activePriceMin = ''; this.activePriceMax = '';
-            } else {
-                this.activePriceRange = bucket;
-                this.activePriceMin = bucket.min === '' ? '' : String(bucket.min);
-                this.activePriceMax = bucket.max === '' ? '' : String(bucket.max);
-            }
-            this.applyPriceFilter();
-        },
 
-        isFilterActive(key, value) { return this.activeFilters.some(f => f.key === key && f.value === value); },
 
-        goToPage(p) { this.page = p; this._writeUrl(); this.paginationLoading = true; this.fetch().then(() => { this.paginationLoading = false; this.$nextTick(() => this._scrollToResults()); }); },
         /*
          * Mirror the current view into the URL — bookmarkable, shareable, survives
          * the back button. Adopted from Ahy_PlpRevamp. No `q` here (a category page
@@ -346,12 +175,6 @@ function ahyCategoryResults(productsApiUrl, searchToken, categoryName, platformS
             window.history.replaceState(null, '', window.location.pathname + (qs ? '?' + qs : ''));
         },
 
-        setSort(val) {
-            this.sort = val; this.page = 1; this._writeUrl(); this.fetch();
-        },
-        sortLabel() {
-            return { relevance: 'Relevance', price_asc: 'Price: Low to high', price_desc: 'Price: High to low' }[this.sort] || 'Relevance';
-        },
 
         /* Was hardcoded to Everest's seller names — see web/js/plp/runtime.js. */
         isFreeShipping(product) {
@@ -366,36 +189,6 @@ function ahyCategoryResults(productsApiUrl, searchToken, categoryName, platformS
         },
 
         /* Was the Everest logo on the Everest CDN. Empty default renders nothing. */
-        FALLBACK_IMG: ((window.FalcoSense && window.FalcoSense.config.fallbackImage) || ''),
-        isFallbackImg(image) {
-            return this.imgUrl(image) === this.FALLBACK_IMG;
-        },
-        imgUrl(image) {
-            if (!image || image.includes('no_selection')) return this.FALLBACK_IMG;
-            const cdn = (window.FalcoSense && window.FalcoSense.config.cdnBase) || '';
-            const falcosenseBase = cdn + '/media/falcosense/800x800';
-            if (image.includes('/falcosense/')) {
-                const fm = image.match(/\/falcosense\/[^/]+\/(?:.*\/)?([^/]+\/[^/]+\/[^/]+)$/);
-                return fm ? falcosenseBase + '/' + fm[1] : image;
-            }
-            let path = image.startsWith('http') ? image.replace(/^https?:\/\/[^/]+/, '') : image;
-            path = path.replace(/\/cache\/[^/]+\//, '/');
-            const m = path.match(/\/catalog\/product\/(.+)$/);
-            if (m) return falcosenseBase + '/' + m[1];
-            const filename = path.split('/').pop();
-            if (!filename) return this.FALLBACK_IMG;
-            if (filename.length >= 2) {
-                return falcosenseBase + '/' + filename[0] + '/' + filename[1] + '/' + filename;
-            }
-            return falcosenseBase + '/' + path.replace(/^\/+/, '');
-        },
-        handleImgError(event) {
-            const el = event.target;
-            if (el.dataset.imgFailed) return;
-            el.dataset.imgFailed = '1';
-            el.src = this.FALLBACK_IMG;
-            el.style.opacity = '0.45';
-        },
 
         async addSimpleToCart(product) {
             const pid = product.product_id;
@@ -440,6 +233,14 @@ function ahyCategoryResults(productsApiUrl, searchToken, categoryName, platformS
             } catch(e) { console.error('[SmartSearch] wishlist error', e); }
             finally { this.wishLoading = { ...this.wishLoading, [pid]: false }; }
         },
-    };
+
+        /* ---- hooks into the shared engine --------------------------------- */
+
+        /** The category grid identifies its listing by category, not by query. */
+        _applyQueryParams(url) {
+            url.searchParams.set('category', this.categoryName);
+            if (this.categoryId) url.searchParams.set('category_ids', this.categoryId);
+        },
+    });
 }
 })(window);

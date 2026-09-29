@@ -34,9 +34,7 @@ $heroicons = $viewModels->require(HeroiconsOutline::class);
             cartInterval: null,
             innerHtmlBackup: null,
             totalCartAmount: 0,
-            hasExtraActions: false,
-            extraActionsRendered: false,
-            failedImages: {},
+            hasExtraActions: false, 
             init() {
                 this.$watch('open', (value) => {
                     if (!value) {
@@ -56,12 +54,7 @@ $heroicons = $viewModels->require(HeroiconsOutline::class);
                         data.cart.extra_actions.trim().length
                     );
 
-                    if (!this.cart.summary_count) {
-                        this.extraActionsRendered = false;
-                    }
-
                     this.setCartItems();
-                    this.renderExtraActionsOnce();
                 }
                 this.isLoading = false;
             },
@@ -81,39 +74,38 @@ $heroicons = $viewModels->require(HeroiconsOutline::class);
                 return totalPrice;
             },
             ahyToggleCart() {
-                // this.removeElementsBasedOnCart();
+                this.removeElementsBasedOnCart();
                 this.open = true;
-                // if (this.open) {
-                //     this.removeElementsBasedOnCart;
-                // }
-                this.renderExtraActionsOnce();
+                if (this.open) {
+                    this.removeElementsBasedOnCart;
+                }
             },
-            // removeElementsBasedOnCart() {
-            //     // Access cart data from local storage
-            //     window.dispatchEvent(new CustomEvent('reload-customer-section-data'));
-            //     var cartData = JSON.parse(localStorage.getItem('mage-cache-storage'));
-            //     var cart = cartData.cart;
+            removeElementsBasedOnCart() {
+                // Access cart data from local storage
+                window.dispatchEvent(new CustomEvent('reload-customer-section-data'));
+                var cartData = JSON.parse(localStorage.getItem('mage-cache-storage'));
+                var cart = cartData.cart;
 
-            //     var targetElement = document.querySelector('.cart-extra-actions-container');
-            //     if (!targetElement) return;
+                var targetElement = document.querySelector('.cart-extra-actions-container');
+                if (!targetElement) return;
 
-            //     if (cart.hasOwnProperty('extra_actions') && cart.extra_actions === "") {
-            //         // Store the inner HTML of the target element
-            //         if (!this.innerHtmlBackup) {
-            //             this.innerHtmlBackup = targetElement.innerHTML;
-            //         }
-            //         // Remove all child elements of targetElement
-            //         while (targetElement.firstChild) {
-            //             targetElement.removeChild(targetElement.firstChild);
-            //         }
-            //     } else {
-            //         // Restore the inner HTML if condition is false
-            //         if (this.innerHtmlBackup) {
-            //             targetElement.innerHTML = this.innerHtmlBackup;
-            //             this.innerHtmlBackup = null; // Reset the backup
-            //         }
-            //     }
-            // },
+                if (cart.hasOwnProperty('extra_actions') && cart.extra_actions === "") {
+                    // Store the inner HTML of the target element
+                    if (!this.innerHtmlBackup) {
+                        this.innerHtmlBackup = targetElement.innerHTML;
+                    }
+                    // Remove all child elements of targetElement
+                    while (targetElement.firstChild) {
+                        targetElement.removeChild(targetElement.firstChild);
+                    }
+                } else {
+                    // Restore the inner HTML if condition is false
+                    if (this.innerHtmlBackup) {
+                        targetElement.innerHTML = this.innerHtmlBackup;
+                        this.innerHtmlBackup = null; // Reset the backup
+                    }
+                }
+            },
             deleteItemFromCart(itemId) {
                 this.isLoading = true;
 
@@ -178,81 +170,44 @@ $heroicons = $viewModels->require(HeroiconsOutline::class);
                     }
                 });
             },
-            renderExtraActionsOnce() {
-                if (this.extraActionsRendered || !this.cart.extra_actions) {
+            getSectionDataExtraActions() {
+                if (! this.cart.extra_actions) {
+                    return '';
+                }
+
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(`<html><body><div id="__extra_actions">${this.cart.extra_actions}</div></body></html>`, 'text/html');
+                const contentNode = doc.getElementById('__extra_actions')
+
+                if (!contentNode || !contentNode.innerHTML.length) {
                     return;
                 }
-                this.extraActionsRendered = true;
 
-                const attempt = (retriesLeft) => {
-                    const container = this.$el.querySelector('[x-ref="extraActionsContainer"]');
-                    if (!container) {
-                        if (retriesLeft > 0) {
-                            setTimeout(() => attempt(retriesLeft - 1), 50);
-                        } else {
-                            this.extraActionsRendered = false;
-                        }
-                        return;
+                // Extract all the script tags from the new content.
+                // Script tags won't execute when inserted into a dom-element directly,
+                // therefore we need to inject them to the head of the document.
+                const tmpScripts = contentNode.getElementsByTagName('script');
+
+                if (tmpScripts.length > 0) {
+                    // Push all script tags into an array
+                    // (to prevent dom manipulation while iterating over dom nodes)
+                    const scripts = [];
+                    for (let i = 0; i < tmpScripts.length; i++) {
+                        scripts.push(tmpScripts[i]);
                     }
 
-                    // Guard: never inject into a container that already has content.
-                    // Without this, a second call to renderExtraActionsOnce() (e.g. triggered
-                    // by extraActionsRendered being reset when summary_count briefly goes falsy
-                    // during a section reload) injects a second copy of the extra_actions HTML
-                    // + <script> block. The duplicate script then throws a SyntaxError
-                    // (e.g. "Identifier 'interval' has already been declared"), which aborts
-                    // that copy's init logic mid-way and leaves its PayPal iframe stuck at 0x0.
-                    if (container.children.length > 0) {
-                        return;
-                    }
-
-                    const parser = new DOMParser();
-                    const doc = parser.parseFromString(`<html><body><div id="__extra_actions">${this.cart.extra_actions}</div></body></html>`, 'text/html');
-                    const contentNode = doc.getElementById('__extra_actions')
-
-                    if (!contentNode || !contentNode.innerHTML.length) {
-                        this.extraActionsRendered = false;
-                        return;
-                    }
-
-                    const scripts = Array.from(contentNode.getElementsByTagName('script'));
-                    scripts.forEach((s) => s.parentNode.removeChild(s));
-
+                    // Iterate over all script tags and duplicate+inject each into the head
                     for (let i = 0; i < scripts.length; i++) {
                         let script = document.createElement('script');
                         script.innerHTML = scripts[i].innerHTML;
+
                         document.head.appendChild(script);
+
+                        // Remove the original (non-executing) node from the page
+                        // scripts[i].parentNode.removeChild(scripts[i]);
                     }
-
-                    const uniqueSuffix = '_' + Date.now();
-                    const renderedHtml = contentNode.innerHTML.replace(
-                        /paypalInContextRenderTarget(\d+)/g,
-                        (match, n) => match + uniqueSuffix
-                    );
-
-                    if (window.Alpine && typeof window.Alpine.mutateDom === 'function') {
-                        window.Alpine.mutateDom(() => {
-                            container.innerHTML = renderedHtml;
-                        });
-                    } else {
-                        container.innerHTML = renderedHtml;
-                    }
-
-                    if (window.Alpine && typeof window.Alpine.initTree === 'function') {
-                        window.Alpine.initTree(container);
-                    }
-
-                    const buttonEl = container.querySelector('[x-data]');
-                    if (buttonEl && window.Alpine) {
-                        const buttonData = window.Alpine.$data(buttonEl);
-                        if (buttonData) {
-                            buttonData.cartSection = this.cart;
-                            buttonData.checkAndInitializeButtons();
-                        }
-                    }
-                };
-
-                this.$nextTick(() => attempt(20));
+                }
+                return contentNode.innerHTML;
             }
         }
     }
@@ -268,7 +223,7 @@ $heroicons = $viewModels->require(HeroiconsOutline::class);
             aria-labelledby="cart-drawer-title"
             aria-modal="true"
             @click.outside="open=false"
-            class="fixed inset-y-0 ahy-minicart-drawer right-0 z-50 flex max-w-full">
+            class="fixed inset-y-0 ahy-minicart-drawer right-0 z-50 flex max-w-full overflow-y-auto">
             <div class="backdrop"
                 x-show="open"
                 x-transition:enter="ease-in-out duration-500"
@@ -279,7 +234,7 @@ $heroicons = $viewModels->require(HeroiconsOutline::class);
                 x-transition:leave-end="opacity-0"
                 @click="open=false"
                 aria-label="Close panel"></div>
-            <div class="relative w-screen max-w-xl shadow-2xl h-full overflow-y-auto"
+            <div class="relative w-screen max-w-xl shadow-2xl"
                 x-show="open"
                 x-transition:enter="transform transition ease-in-out duration-500 sm:duration-700"
                 x-transition:enter-start="translate-x-full"
@@ -301,7 +256,7 @@ $heroicons = $viewModels->require(HeroiconsOutline::class);
                         <?= $heroicons->xHtml(); ?>
                     </button>
                 </div>
-                <div class="flex flex-col min-h-full h-auto pt-6 bg-white shadow-xl">
+                <div class="flex flex-col min-h-full h-auto pt-6 bg-white shadow-xl ">
                     <?= $block->getChildHtml('cart-drawer.top'); ?>
 
                     <header class="px-4 sm:px-6">
@@ -330,14 +285,13 @@ $heroicons = $viewModels->require(HeroiconsOutline::class);
                                 ease-in-out rounded-lg hover:bg-gray-100">
                                 <a :href="item.product_url" class="w-1/4">
                                     <img
-                                        :src="failedImages[item.product_image.src] ? item.product_image.fallback_src : item.product_image.src"
-                                        @error="if (!failedImages[item.product_image.src]) { failedImages = {...failedImages, [item.product_image.src]: true}; $event.target.src = item.product_image.fallback_src; }"
+                                        :src="item.product_image.src"
                                         :width="item.product_image.width"
                                         :height="item.product_image.height"
                                         loading="lazy"
                                     />
                                 </a>
-                                <div class="w-2/4 space-y-2">
+                                <div class="w-5/12 space-y-2">
                                     <div>
                                         <p class="text-lg font-normal text-ahy-blue line-clamp-2">
                                             <span x-html="item.product_name"></span>
@@ -365,18 +319,44 @@ $heroicons = $viewModels->require(HeroiconsOutline::class);
                                         </button>
                                     </div> -->
                                 </div>
-                                <div class="w-1/4">
-                                    <template x-if="item.product_price_value !== getTotalProductPrice(item.product_price_value, item.qty)">
-                                        <div class="flex items-end flex-col">
-                                            <p class="text-lg font-bold text-ahy-blue"><span x-html="hyva.formatPrice(getTotalProductPrice(item.product_price_value, item.qty))"></span></p>
-                                            <p class="text-sm text-ahy-body-text-color flex gap-1">Each <span x-html="hyva.formatPrice(item.product_price_value)"></span></p>
+                                <div class="w-1/3">
+                                    <!--
+                                        One price block, not two.
+
+                                        This used to be a pair of templates keyed on
+                                          product_price_value !== getTotalProductPrice(...)   and
+                                          product_price_value ==  getTotalProductPrice(...)
+                                        which are NOT mutually exclusive: product_price_value
+                                        arrives as a string ("14.6") while getTotalProductPrice()
+                                        returns a number (14.6), so !== is true (different types)
+                                        AND == is true (loose) at the same time, and both blocks
+                                        rendered. Switching on item.qty > 1 removes the coercion
+                                        trap entirely.
+                                    -->
+                                    <div class="flex items-end flex-col">
+                                        <!-- Label + charged price share one line. whitespace-nowrap
+                                             keeps "CALIBERNATION PRICE" from wrapping in the narrow
+                                             column; the inline colour beats the text-ahy-blue class
+                                             without needing a new Tailwind class in the JIT build. -->
+                                        <div class="flex items-center justify-end gap-1.5 whitespace-nowrap">
+                                            <template x-if="item.caliber_has_member_price">
+                                                <span class="text-[10px] font-semibold uppercase tracking-tight"
+                                                      style="color:#0D2E47;">CaliberNation Price</span>
+                                            </template>
+                                            <p class="text-lg font-bold text-ahy-blue"
+                                               :style="item.caliber_has_member_price ? 'color:#0D2E47' : ''"
+                                               x-html="hyva.formatPrice(getTotalProductPrice(item.product_price_value, item.qty))"></p>
                                         </div>
-                                    </template>
-                                    <template x-if="item.product_price_value == getTotalProductPrice(item.product_price_value, item.qty)">
-                                        <div class="flex items-end flex-col">
-                                            <p class="text-lg font-bold text-ahy-blue flex gap-1"><span x-html="hyva.formatPrice(item.product_price_value)"></span></p>
-                                        </div>
-                                    </template>
+
+                                        <!-- Pre-membership total, struck, BELOW the member price.
+                                             caliber_* keys are set only for active members with a member
+                                             price on this line (Ahy\PlpRevamp\Plugin\Checkout\MinicartMemberPrice);
+                                             absent otherwise, so non-members render exactly as before. -->
+                                        <template x-if="item.caliber_has_member_price">
+                                            <p class="text-sm text-ahy-body-text-color line-through"
+                                               x-html="hyva.formatPrice(getTotalProductPrice(item.caliber_regular_price_value, item.qty))"></p>
+                                        </template>
+                                    </div>
                                     <template x-if="parseFloat(item.product_price_value) > 0">
                                         <div class="flex items-end flex-col mt-2">
                                             <div class="flex items-center border-2 border-ahy-blue rounded-full overflow-hidden w-fit">
@@ -406,7 +386,7 @@ $heroicons = $viewModels->require(HeroiconsOutline::class);
                             hover:bg-gray-100">
                             <p><?= $escaper->escapeHtml(__('Subtotal')) ?>: <span x-html="cart.subtotal"></span></p>
                         </div> -->
-                        <div class="w-full px-3 pt-3 pb-1 flex flex-col md:flex-row gap-4 justify-between transition duration-150 ease-in-out rounded-lg ">
+                        <div class="w-full p-3 flex flex-col md:flex-row gap-4 justify-between transition duration-150 ease-in-out rounded-lg ">
                             <!-- <a @click.prevent.stop="$dispatch('toggle-authentication',
                                 {url: '<?= $escaper->escapeUrl($block->getUrl('checkout')) ?>'});"
                                href="<?= $escaper->escapeUrl($block->getUrl('checkout')) ?>"
@@ -421,12 +401,15 @@ $heroicons = $viewModels->require(HeroiconsOutline::class);
                                 </button>
                             </a>
 
-                            <a href="<?= $escaper->escapeUrl($block->getUrl('checkout/cart')) ?>" class="w-full md:w-1/2" @click="open=false">
-                                <button class="ahy-custom-btn text-white font-bold text-sm w-full h-12" style="background-color:#2E7D32;" @mouseenter="$el.style.backgroundColor='#256b28'" @mouseleave="$el.style.backgroundColor='#2E7D32'"><?= $escaper->escapeHtml(__('View Cart')) ?></button>
+                            <a href="<?= $escaper->escapeUrl($block->getUrl('checkout/cart')) ?>" class="w-full md:w-1/2">
+                                <button class="ahy-custom-btn bg-ahy-red text-white font-bold text-sm hover:bg-ahy-red-light w-full h-12"><?= $escaper->escapeHtml(__('View Cart')) ?></button>
                             </a>
                         </div>
-                        <a href="<?= $escaper->escapeUrl($block->getUrl('checkout')) ?>" class="w-full px-4 pt-1" @click="open=false">
-                            <button class="btn bg-ahy-red hover:bg-ahy-red-light w-full relative ahy-custom-btn">
+                        <a href="<?= $escaper->escapeUrl($block->getUrl('checkout')) ?>" class="w-full px-4 pt-6">
+                            <button class="btn w-full relative ahy-custom-btn"
+                                    style="background-color:#2E7D32;"
+                                    @mouseenter="$el.style.backgroundColor='#256b28'"
+                                    @mouseleave="$el.style.backgroundColor='#2E7D32'">
                                 <img src="/media/icons/lock.svg" alt="lock icon" class="w-4 h-4">
                                 <span class="w-full font-bold py-2 text-center"><?= $escaper->escapeHtml(__('Continue to Checkout')) ?></span>
                             </button>
@@ -450,7 +433,8 @@ $heroicons = $viewModels->require(HeroiconsOutline::class);
                             </div>
                         </div>
 
-                        <div x-ref="extraActionsContainer" x-show="hasExtraActions"></div>
+                        <!-- <div x-html="getSectionDataExtraActions()"></div> -->
+                        <?= $block->getChildHtml('extra_actions') ?>
                         <!-- <div class="ahy-show-minicart-paypal-button">
                             <?//= $block->getChildHtml('paypal.show') ?>
                         </div> -->

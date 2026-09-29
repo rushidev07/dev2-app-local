@@ -1,0 +1,411 @@
+<?php
+declare(strict_types=1);
+
+use Magento\Framework\Escaper;
+use Magento\Framework\View\Element\Template;
+use Magento\Search\Helper\Data as SearchHelper;
+use FalcoSense\Search\Helper\Data as SmartSearchHelper;
+use FalcoSense\Search\Service\SearchTokenService;
+
+
+/** @var Escaper $escaper */
+/** @var Template $block */
+/** @var SearchHelper $helper */
+
+$helper            = $this->helper(SearchHelper::class);
+$smartSearchHelper = $this->helper(SmartSearchHelper::class);
+
+$tokenService    = \Magento\Framework\App\ObjectManager::getInstance()->get(SearchTokenService::class);
+$platformStoreId = (int) $smartSearchHelper->getPlatformStoreId();
+$searchToken     = $tokenService->getToken($platformStoreId);
+
+$endpoint = $smartSearchHelper->getEndpointUrl() ?: 'http://localhost:8080';
+$parsed   = parse_url($endpoint);
+$apiBase  = ($parsed['scheme'] ?? 'http') . '://' . ($parsed['host'] ?? 'localhost');
+if (!empty($parsed['port'])) { $apiBase .= ':' . $parsed['port']; }
+$productsApiUrl  = $apiBase . '/api/v1/products';
+$addToCartUrl    = $block->getUrl('checkout/cart/add');
+$tokenRefreshUrl = $block->escapeUrl($block->getUrl('smartsearch/search/token'));
+$fsSearchUrl     = $block->escapeUrl($block->getUrl('fs/search'));
+?>
+
+<?php /*
+    SEARCH OVERLAY — mounted ONCE per page, in before.body.end.
+
+    Split out of html/header/search-form.phtml. That template is rendered once
+    per responsive placement, so the overlay was being emitted as many times as
+    the theme mounted the input — three times on Everest, each carrying
+    id="ahyModal". Only the first instance ever initialised (ahyModalSearch
+    guards on window._ahyModalInited), leaving two inert duplicates competing
+    for the same id.
+
+    ahyTokenRefresh travels with this file rather than the input, because it is
+    a page-level singleton shared with search/autocomplete.phtml and the three
+    PLP components, and it only needs to exist once. before.body.end renders
+    after the header, so the input's markup is already in place by the time this
+    runs.
+*/ ?>
+
+<script>
+window.ahyTokenRefresh = window.ahyTokenRefresh || (function () {
+    const tokenUrl = <?= json_encode($tokenRefreshUrl) ?>;
+    let cached = null;
+    let inflight = null;
+
+    async function fetchLive(force) {
+        try {
+            const url = force ? (tokenUrl + (tokenUrl.includes('?') ? '&' : '?') + 'force=1') : tokenUrl;
+            const resp = await fetch(url, { credentials: 'include', cache: 'no-store' });
+            const data = await resp.json();
+            return data && data.success ? data.token : null;
+        } catch (e) {
+            console.error('[ahyTokenRefresh] fetch error', e);
+            return null;
+        }
+    }
+
+    return {
+        async get() {
+            if (cached) return cached;
+            if (!inflight) {
+                inflight = fetchLive(false).then(t => { cached = t; inflight = null; return t; });
+            }
+            return inflight;
+        },
+        async refresh() {
+            cached = null;
+            const t = await fetchLive(true);
+            cached = t;
+            if (t) window.dispatchEvent(new CustomEvent('ahy-token-refreshed', { detail: t }));
+            return t;
+        },
+    };
+})();
+
+/*
+ * ahyModalSearch() now lives in web/js/plp/modal-search.js.
+ *
+ * It was 391 lines inline here, which meant replacing this template's markup
+ * also meant losing the overlay's behaviour. Registered in
+ * view/frontend/layout/default.xml; the file guards against overwriting a
+ * host-supplied component of the same name.
+ *
+ * It is still a fork of the engine in search-results.js — see that file's header
+ * for what remains to be merged.
+ */
+</script>
+
+<!--
+    fs-modal-shell replaces a bare class="columns" here.
+
+    That class was borrowed from the theme to get its centered container
+    (max-width ladder + 1.5rem gutters). It also matched the theme's PAGE GRID
+    rule, which is a descendant selector:
+        .page-layout-2columns-left .columns { grid-template-columns: repeat(N, ...) }
+    Any .columns under <body> matches it — including this one, sitting in the
+    header and nowhere near the page layout. So whenever the host page's grid
+    said 4 columns, this wrapper became a 4-column grid and the search overlay
+    was squeezed into a quarter of the width. Forcing the host grid to 1 column
+    fixed the overlay but collapsed the sidebar on every other page.
+
+    The container styling is now replicated under our own namespaced class in
+    fs-components.css, so the host's page-layout rules cannot reach it and we no
+    longer need to override them.
+-->
+<div class="fs-modal-shell">
+<!--
+    .fs-root is the isolation boundary. Everything inside it gets the
+    `all: unset` reset from fs-base.css, so the host theme's CSS cannot reach
+    FalcoSense's markup and FalcoSense's CSS cannot escape into the host page.
+    It is added here — not on <body> or a theme container — so the boundary
+    covers exactly what this module owns and nothing else.
+-->
+<div id="ahyModal" class="fs-root"
+     x-data="ahyModalSearch('<?= $escaper->escapeJs($productsApiUrl) ?>', '<?= $escaper->escapeJs($searchToken) ?>', '<?= $escaper->escapeJs($addToCartUrl) ?>')"
+     x-init="init()"
+     x-cloak>
+
+    <!-- ── Title ──────────────────────────────────────── -->
+    <!-- px-4 only below lg: on desktop the modal's own centered/max-width container already
+         leaves a side gutter at this position, but on mobile that container is full-width,
+         so without explicit padding this heading sits flush against the screen edge while
+         everything below it (cards, buttons) carries its own padding and doesn't. -->
+    <div class="fs-modal__head">
+        <h1 class="fs-modal__title"
+            x-text="'SEARCH RESULTS FOR: \'' + searchQuery.toUpperCase() + '\''"></h1>
+    </div>
+
+    <div id="ahy-pagination-anchor"></div>
+
+    <!-- ── Layout ─────────────────────────────────────── -->
+    <!-- Loader below is scoped to this whole row (filters + products together),
+         so it's horizontally centered across the full width instead of just the
+         narrower products column, and both sides visibly "load" together. The
+         filters/grid underneath stay mounted (not hidden) while a fetch is in
+         flight, so nothing collapses/reflows while the shopper keeps typing
+         (no CLS). Only the very first-ever fetch (nothing rendered yet) has no
+         content to sit on top of, so it gets a min-height placeholder instead. -->
+    <div id="ahy-results-layout" class="fs-results-row"
+         :style="(loading && !results.length) ? 'min-height:420px' : ''">
+
+        <!-- Loader — covers the full filters+products row, shown for typing/filter/sort fetches and pagination -->
+        <div x-show="loading || paginationLoading" x-cloak class="fs-loader-overlay">
+            <div class="fs-loader" style="margin:0;"></div>
+        </div>
+
+        <!-- ── Sidebar ─────────────────────────────────── -->
+        <aside class="fs-sidebar" x-show="loading || results.length > 0">
+
+            <!-- Item count -->
+            <div x-show="!loading && !error" class="fs-sidebar__count">
+                <span class="fs-sidebar__count-text">(<span x-text="total"></span> Items)</span>
+            </div>
+
+            <!-- Active filter tags -->
+            <div x-show="activeFilters.length > 0 || activePriceMin !== '' || activePriceMax !== ''" class="fs-chips">
+                <template x-for="f in activeFilters" :key="f.key + f.value">
+                    <span class="fs-chip"
+                          @click="removeFilter(f.key, f.value)">
+                        <span x-text="f.label + ': ' + f.value"></span>
+                        <svg class="fs-chevron--sm" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                    </span>
+                </template>
+                <template x-if="activePriceMin !== '' || activePriceMax !== ''">
+                    <span class="fs-chip" @click="clearPriceFilter()">
+                        <span x-text="'Price: $' + activePriceMin + (activePriceMax ? ' – $' + activePriceMax : '+')"></span>
+                        <svg class="fs-chevron--sm" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                    </span>
+                </template>
+                <button class="fs-clear-all" @click="clearAllFilters()">Reset all</button>
+            </div>
+
+            <!-- Filter groups -->
+            <div class="fs-filter-stack" x-show="filters.length > 0 || priceRange.min !== null">
+
+                <?= /* @noEscape */ $block->getChildHtml("header_filters_desktop") ?>
+            </div>
+        </aside>
+
+        <!-- ── Main content ────────────────────────────── -->
+        <div class="fs-main">
+
+            <!-- ── Mobile filter/sort toolbar ──────────────── -->
+            <div class="fs-mobile-only" x-show="!error && results.length > 0">
+                <div class="fs-mobile-bar">
+                    <!-- FILTER BY pill -->
+                    <button @click="mobileFiltersOpen = !mobileFiltersOpen; mobileSortOpen = false"
+                            class="fs-pill-btn"
+                            :class="activeFilters.length > 0 || activePriceMin !== '' ? 'is-active' : ''">
+                        FILTER BY
+                        <span x-show="activeFilters.length > 0 || activePriceMin !== ''"
+                              x-text="' (' + (activeFilters.length + (activePriceMin !== '' ? 1 : 0)) + ')'"></span>
+                    </button>
+                    <!-- Sort by inline -->
+                    <div x-data="{ open: false }" class="fs-sort fs-sort--wrap">
+                        <span class="fs-sort__label">Sort by:</span>
+                        <button @click="open = !open" class="fs-sort__btn fs-sort__btn--tight">
+                            <span x-text="sortLabel()"></span>
+                            <svg class="fs-chevron" :class="open ? 'is-open' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                        </button>
+                        <div x-show="open" @click.outside="open = false"
+                             class="fs-menu fs-menu--left">
+                            <button @click="setSort('relevance'); open = false" class="fs-menu__item fs-menu__item--lg" :class="sort === 'relevance' ? 'is-active' : ''">Relevance</button>
+                            <button @click="setSort('price_asc'); open = false" class="fs-menu__item fs-menu__item--lg" :class="sort === 'price_asc' ? 'is-active' : ''">Price: Low to High</button>
+                            <button @click="setSort('price_desc'); open = false" class="fs-menu__item fs-menu__item--lg" :class="sort === 'price_desc' ? 'is-active' : ''">Price: High to Low</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Mobile sort panel (removed — now inline dropdown above) -->
+                <div x-show="false" class="fs-hidden">
+                    <button @click="setSort('relevance'); mobileSortOpen = false"
+                            class="fs-menu__item fs-menu__item--lg" :class="sort === 'relevance' ? 'is-active' : ''">Relevance</button>
+                    <button @click="setSort('price_asc'); mobileSortOpen = false"
+                            class="fs-menu__item fs-menu__item--lg" :class="sort === 'price_asc' ? 'is-active' : ''">Price: Low to High</button>
+                    <button @click="setSort('price_desc'); mobileSortOpen = false"
+                            class="fs-menu__item fs-menu__item--lg" :class="sort === 'price_desc' ? 'is-active' : ''">Price: High to Low</button>
+                </div>
+
+            </div>
+
+            <!-- ── Mobile filter full-screen modal ─────────── -->
+            <div x-show="mobileFiltersOpen"
+                 class="fs-drawer">
+
+                <!-- Top bar -->
+                <div class="fs-drawer__head">
+                    <button @click="clearAllFilters()" class="fs-sidebar__count-text">Reset</button>
+                    <button @click="mobileFiltersOpen = false"
+                            class="fs-drawer__close">&#x2715;</button>
+                    <button @click="mobileFiltersOpen = false" class="fs-sidebar__count-text">Apply</button>
+                </div>
+
+                <!-- Item count -->
+                <div class="fs-drawer__section">
+                    <span class="fs-drawer__section-title" x-text="'(' + total + ' Items)'"></span>
+                </div>
+
+                <!-- Filter groups -->
+                <div class="fs-drawer__body">
+
+                    <?= /* @noEscape */ $block->getChildHtml("header_filters_mobile") ?>
+                </div>
+            </div>
+
+            <!-- Sort row (desktop) -->
+            <div class="fs-sortbar" x-show="!error && results.length > 0">
+                <div x-data="{ open: false }" class="fs-sort">
+                    <span>Sort by:</span>
+                    <button @click="open = !open" class="fs-sort__btn">
+                        <span x-text="sortLabel()"></span>
+                        <svg class="fs-chevron" :class="open ? 'is-open' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                        </svg>
+                    </button>
+                    <div x-show="open" @click.outside="open = false"
+                         class="fs-menu">
+                        <button @click="setSort('relevance'); open = false" class="fs-menu__item" :class="sort === 'relevance' ? 'is-active' : ''">Relevance</button>
+                        <button @click="setSort('price_asc'); open = false" class="fs-menu__item" :class="sort === 'price_asc' ? 'is-active' : ''">Price: Low to High</button>
+                        <button @click="setSort('price_desc'); open = false" class="fs-menu__item" :class="sort === 'price_desc' ? 'is-active' : ''">Price: High to Low</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Spell correction — kept tied only to wasCorrection/suggestedQuery (last completed
+                 fetch's values, not reset until the search term itself changes, see init()),
+                 same as the results grid below: it must NOT also gate on !loading, or it pops out
+                 and back in on every filter/sort/pagination refetch even though its own content
+                 hasn't changed, yanking the grid below up and down each time. -->
+            <div x-show="wasCorrection" class="fs-notice">
+                Showing results for <strong class="fs-notice__em" x-text="correctedQuery"></strong> instead of <em x-text="originalQuery"></em>.
+                <a class="fs-link fs-link--inline" @click.prevent="searchExact(originalQuery)" x-text="'Search for &quot;' + originalQuery + '&quot; anyway'"></a>
+            </div>
+            <div x-show="!wasCorrection && suggestedQuery" class="fs-notice">
+                Did you mean <a class="fs-link" @click.prevent="searchExact(suggestedQuery)" x-text="'&quot;' + suggestedQuery + '&quot;'"></a>?
+            </div>
+
+            <?= /* @noEscape */ $block->getChildHtml("header_zero_results") ?>
+
+            <!-- Desktop product grid -->
+            <div x-show="!error && results.length > 0" class="fs-grid" style="gap:var(--ahy-grid-gap);">
+                <template x-for="(product, index) in sortedResults()" :key="product.sku || product.product_id">
+                    <?= /* @noEscape */ $block->getChildHtml("header_product_card_desktop") ?>
+                </template>
+            </div>
+
+            <!-- Mobile product list (< 640px horizontal, 640–768px padded) -->
+            <div x-show="!error && results.length > 0" class="fs-grid--mobile" style="gap:var(--ahy-grid-gap);">
+                <template x-for="(product, index) in sortedResults()" :key="'m-' + (product.sku || product.product_id)">
+                    <?= /* @noEscape */ $block->getChildHtml("header_product_card_mobile") ?>
+                </template>
+            </div>
+
+            <!-- Pagination -->
+            <div x-show="!loading && !error && totalPages > 1" class="fs-pager">
+                <button aria-label="Previous" :disabled="page <= 1"
+                        @click="page > 1 && goToPage(page - 1)"
+                        class="fs-pager__btn"
+                        :class="page <= 1 ? 'is-disabled' : ''">
+                    <svg class="fs-icon fs-icon--lg" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+                </button>
+                <div x-data="{ open: false }" class="fs-pager__pages">
+                    <button @click="open = !open" class="fs-sort__btn fs-sort__btn--plain">
+                        Page <span x-text="page"></span> of <span x-text="totalPages"></span>
+                        <svg class="fs-chevron fs-chevron--inset" :class="open ? 'is-open' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                        </svg>
+                    </button>
+                    <nav x-show="open" @click.outside="open = false"
+                         class="fs-page-menu">
+                        <template x-for="p in totalPages" :key="p">
+                            <button class="fs-menu__item fs-menu__item--center"
+                                    :class="p === page ? 'is-active' : ''"
+                                    @click="goToPage(p); open = false"
+                                    x-text="'Page ' + p"></button>
+                        </template>
+                    </nav>
+                </div>
+                <button aria-label="Next" :disabled="page >= totalPages"
+                        @click="page < totalPages && goToPage(page + 1)"
+                        class="fs-pager__btn"
+                        :class="page >= totalPages ? 'is-disabled' : ''">
+                    <svg class="fs-icon fs-icon--lg" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                </button>
+            </div>
+
+        </div><!-- /.flex-1 -->
+    </div><!-- /.flex -->
+
+
+</div><!-- #ahyModal -->
+</div><!-- .fs-modal-shell -->
+
+<style>
+/*
+ * Only rules that CANNOT live in web/css/fs-components.css remain here.
+ *
+ * Everything that styles FalcoSense's own markup has moved to the module
+ * stylesheet under the .fs-root namespace — the carousel (.pop-*), the mobile
+ * card, the loader and the results row all went with it. What is left is the
+ * page-takeover mechanism, which by definition has to reach outside .fs-root:
+ * it hides the HOST page while the modal is open.
+ *
+ * That host coupling is deliberate and is the one thing this module still
+ * asserts about the page it is installed in. It is scoped to body.ahy-search-open
+ * so it only applies while the modal is actually open.
+ */
+
+/* Modal shell. #ahyModal also carries .fs-root; these ID-specificity rules sit
+   above the reset, which is why display/background still apply to it. */
+#ahyModal { display:none; width:100%; min-height:90vh; background:#efeadd; }
+#ahyModal.is-open { display:block; }
+
+/*
+ * Keep the overlay the same width as the rest of the page.
+ *
+ * The theme calls getChildHtml('header-search') THREE times (header.phtml lines
+ * 181, 209, 275 — mobile, desktop, and the sticky desktop variant), so this
+ * template renders three times. Two land inside their .fs-modal-shell wrapper
+ * and inherit its container width. The third ends up reparented directly under
+ * .page-wrapper with no wrapper around it, so it rendered edge-to-edge while
+ * the header and the /fs/search route page stayed centred — the width mismatch
+ * that made the overlay look broken at >=1536px.
+ *
+ * Putting the container on #ahyModal itself makes it correct wherever it lands.
+ * The child rule below then removes it again for the two that ARE wrapped, so
+ * they are not padded twice. `.fs-modal-shell > #ahyModal` is (1,1,0) and beats
+ * the plain `#ahyModal` (1,0,0), so nesting always wins.
+ *
+ * Values match .columns / .fs-modal-shell in web/css/fs-components.css.
+ */
+#ahyModal {
+    margin-left: auto;
+    margin-right: auto;
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+}
+@media (min-width: 640px)  { #ahyModal { max-width: 640px; } }
+@media (min-width: 768px)  { #ahyModal { max-width: 768px; } }
+@media (min-width: 1024px) { #ahyModal { max-width: 1024px; } }
+@media (min-width: 1280px) { #ahyModal { max-width: 1280px; } }
+@media (min-width: 1536px) { #ahyModal { max-width: 1536px; } }
+
+.fs-modal-shell > #ahyModal {
+    max-width: none;
+    margin-left: 0;
+    margin-right: 0;
+    padding-left: 0;
+    padding-right: 0;
+}
+
+/* Page takeover — hides the host page behind the modal. */
+body.ahy-search-open .page-main,
+body.ahy-search-open main,
+body.ahy-search-open #maincontent { display:none !important; }
+body.ahy-search-open .top-container { display:none !important; }
+body.ahy-search-open { background:#efeadd !important; }
+
+/* config-modal.phtml's fixed overlay. Its own .ahy-thumb-strip rules moved into
+   fs-components.css as .fs-cfg__thumbs when that template was converted. */
+.ahy-cfg-overlay { position:fixed; inset:0; z-index:999997; }
+</style>

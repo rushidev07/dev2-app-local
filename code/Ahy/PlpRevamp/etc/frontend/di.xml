@@ -3,18 +3,30 @@
         xsi:noNamespaceSchemaLocation="urn:magento:framework:ObjectManager/etc/config.xsd">
 
     <!--
-        dev2 VARIANT — NOT the dev1 original.
+        Minicart: publish the pre-membership price on each cart line so the drawer
+        can strike it through beside the CaliberNation member price. Values come
+        from Ahy\CaliberNation\Api\QuoteItemMemberPriceInterface, which owns the
+        eligibility rules.
 
-        The original wires Plugin/Checkout/MinicartMemberPrice onto the minicart
-        item renderers. That plugin depends on
-        Ahy\CaliberNation\Api\QuoteItemMemberPriceInterface, and Ahy_CaliberNation
-        is not installed on dev2 — di:compile would fail on the unknown interface.
-
-        Both the plugin and its wiring are removed here because dev2 only needs
-        this module to verify that FalcoSense's shared PLP components coexist with
-        PlpRevamp's own. The minicart decorator is unrelated to that.
-
-        DO NOT copy this file back to dev1 or to production.
+        Declared on BOTH the abstract base and the concrete default renderer, on
+        purpose. Magento inherits plugin config down the class hierarchy, so
+        AbstractItem alone should cover every renderer — but interceptors are only
+        generated for concrete classes, and relying on that inheritance is the one
+        part of this wiring that is not worth betting on. DefaultItem is the class
+        actually instantiated by ItemPool for a standard line, so naming it
+        explicitly guarantees interception. Both entries share one plugin name, so
+        the child declaration merges over the parent and the plugin is applied
+        once, never twice.
     -->
+    <type name="Magento\Checkout\CustomerData\AbstractItem">
+        <plugin name="ahy_plprevamp_minicart_member_price"
+                type="Ahy\PlpRevamp\Plugin\Checkout\MinicartMemberPrice"
+                sortOrder="10"/>
+    </type>
+    <type name="Magento\Checkout\CustomerData\DefaultItem">
+        <plugin name="ahy_plprevamp_minicart_member_price"
+                type="Ahy\PlpRevamp\Plugin\Checkout\MinicartMemberPrice"
+                sortOrder="10"/>
+    </type>
 
 </config>

@@ -56,40 +56,26 @@
 
     w.ahySearchResults = 
 function ahySearchResults(productsApiUrl, searchToken, searchQuery, platformStoreId, analyticsUrl, customerGeoState) {
-        return {
+        /*
+         * Fetching, filters, facets, paging, sorting and image handling come
+         * from FalcoSense.listingCore(). What stays below is the search page's
+         * own: URL state, spelling correction, analytics, and seeding from the
+         * SSR payload that neither of the other surfaces has.
+         *
+         * sortLabels differ here only because this page has always worded them
+         * differently. Kept rather than silently changed; a store that wants one
+         * wording everywhere overrides them in both places.
+         */
+        return Object.assign(w.FalcoSense.listingCore({
+            clientPriceFilter: true,
+            sortLabels: { price_asc: 'Low to High', price_desc: 'High to Low' }
+        }), {
             productsApiUrl,
             searchToken,
             searchQuery,
             platformStoreId,
             analyticsUrl,
             customerGeoState,
-            results: [],
-            cartLoading: {},
-            wishLoading: {},
-            filters: [],
-            apiFacets: [],
-            activeFilters: [],
-            priceRange: { min: null, max: null },
-            priceBuckets: [],
-            activePriceMin: '',
-            activePriceMax: '',
-            activePriceRange: null,
-            priceCollapsed: false,
-            total: 0,
-            page: 1,
-            pageSize: 18,
-            totalPages: 1,
-            paginationLoading: false,
-            sort: 'relevance',
-            loading: true,
-            /*
-             * True when the last fetch FAILED — as distinct from succeeding with zero
-             * products. Without this the two are indistinguishable: both leave results
-             * empty, so an outage renders the same "no matches found" screen as a
-             * genuinely empty result, and a failure mid-session silently leaves the
-             * previous results on screen as if the filter had applied.
-             */
-            error: false,
             wasCorrection: false,
             correctedQuery: '',
             originalQuery: '',
@@ -206,144 +192,8 @@ function ahySearchResults(productsApiUrl, searchToken, searchQuery, platformStor
                 }
             },
 
-            async fetch() {
-                this.loading = true;
-                try {
-                    const t0 = performance.now();
-                    const url = new URL(this.productsApiUrl);
-                    url.searchParams.set('search_token', this.searchToken);
-                    url.searchParams.set('q', this.searchQuery);
-                    url.searchParams.set('page', this.page);
-                    url.searchParams.set('per_page', this.pageSize);
-                    url.searchParams.set('include_variants', '1');
-                    // platform_store_id intentionally omitted — getPlatformStoreId()'s
-                    // position-based calculation is wrong for single-store-view sites
-                    // (always resolves to 1). Omitting it lets the backend fall back to
-                    // the store already correctly configured on the API key itself,
-                    // same as the header search (search-form.phtml) already does.
-                    if (this.customerGeoState) url.searchParams.set('geo_state', this.customerGeoState);
-                    if (this.bypassSpell) url.searchParams.set('bypass_spell', '1');
 
-                    const filterMap = {};
-                    this.activeFilters.forEach(f => {
-                        if (!filterMap[f.key]) filterMap[f.key] = [];
-                        filterMap[f.key].push(f.value);
-                    });
-                    Object.entries(filterMap).forEach(([key, vals]) => url.searchParams.set(key, vals.join('\x1F')));
-                    if (this.activePriceMin !== '') url.searchParams.set('price_min', this.activePriceMin);
-                    if (this.activePriceMax !== '') url.searchParams.set('price_max', this.activePriceMax);
 
-                    let resp = await fetch(url.toString(), { credentials: 'include', cache: 'no-store' });
-                    if (resp.status === 401) {
-                        await this._refreshToken();
-                        url.searchParams.set('search_token', this.searchToken);
-                        resp = await fetch(url.toString(), { credentials: 'include', cache: 'no-store' });
-                    }
-                    const data = await resp.json();
-
-                    if (data.success) {
-                        this.error = false;
-                        this.results = data.data || [];
-                        this.total = (data.pagination && data.pagination.total) || 0;
-                        this.pageSize = (data.pagination && data.pagination.per_page) || 50;
-                        this.totalPages = Math.max(1, Math.ceil(this.total / this.pageSize));
-                        this.apiFacets = data.facets || [];
-                        if (data.was_corrected) {
-                            this.wasCorrection = true;
-                            this.correctedQuery = data.corrected_query;
-                            this.originalQuery  = data.original_query || this.searchQuery;
-                        } else if (!this.wasCorrection) {
-                            this.wasCorrection  = false;
-                            this.correctedQuery = '';
-                            this.originalQuery  = '';
-                        }
-                        this.suggestedQuery = data.suggested_query || '';
-                        this.buildFilters();
-                        this.trackSearch(this.searchQuery, this.total, Math.round(performance.now() - t0));
-
-                        /*
-                         * Host extension point. A storefront layers its own per-product
-                         * data on here — review ratings, member pricing, seller names —
-                         * by calling FalcoSense.enrich(). Everest currently does this by
-                         * maintaining a full copy of this component; the hook replaces
-                         * that. No enrichers registered means no extra requests.
-                         */
-                        if (window.FalcoSense) window.FalcoSense._runEnrichers(this.results, this);
-                    } else {
-                        this.error = true;
-                        console.error('[SmartSearch] Search API error:', data);
-                    }
-                } catch (e) {
-                    this.error = true;
-                    console.error('[SmartSearch] Search fetch error', e);
-                }
-                this.loading = false;
-                if (this.results.length === 0 && !this.activeFilters.length && this.activePriceMin === '' && this.activePriceMax === '') {
-                    window.dispatchEvent(new CustomEvent('ahy-modal-search', { detail: { query: this.searchQuery } }));
-                }
-            },
-
-            buildFilters() {
-                if (this.apiFacets.length === 0) return;
-                const priceFacet = this.apiFacets.find(f => f.key === 'price');
-                if (priceFacet) {
-                    this.priceRange = { min: priceFacet.min ?? null, max: priceFacet.max ?? null };
-                    this.priceBuckets = this.priceRangeBuckets();
-                }
-                const prevState = {};
-                this.filters.forEach(f => { prevState[f.key] = { collapsed: f.collapsed, showAll: f.showAll }; });
-                this.filters = this.apiFacets
-                    .filter(f => f.key !== 'price' && f.key !== 'category')
-                    .map(f => ({
-                        key: f.key,
-                        label: f.key === 'brand' ? 'Shop By Brand' : f.label,
-                        collapsed: prevState[f.key]?.collapsed ?? false,
-                        showAll:   prevState[f.key]?.showAll ?? false,
-                        options: (f.options || []).map(o => ({ value: o.value, count: o.count })).sort((a, b) => {
-                            const aA = this.activeFilters.some(af => af.key === f.key && af.value === a.value) ? -1 : 1;
-                            const bA = this.activeFilters.some(af => af.key === f.key && af.value === b.value) ? -1 : 1;
-                            return aA - bA;
-                        }),
-                    }));
-                if (this.autoBrand && !this.activeFilters.some(f => f.key === 'brand')) {
-                    const brandFilter = this.filters.find(f => f.key === 'brand');
-                    if (brandFilter) {
-                        const match = brandFilter.options.find(o => o.value.toLowerCase() === this.autoBrand.toLowerCase());
-                        if (match) {
-                            this.activeFilters.push({ key: 'brand', label: 'Shop By Brand', value: match.value });
-                            this.autoBrand = '';
-                            this.page = 1;
-                            this.fetch();
-                        }
-                    }
-                }
-            },
-
-            sortedResults() {
-                if (!Array.isArray(this.results)) return [];
-                let res = this.results;
-                if (this.activePriceMin !== '' || this.activePriceMax !== '') {
-                    const lo = this.activePriceMin !== '' ? parseFloat(this.activePriceMin) : 0;
-                    const hi = this.activePriceMax !== '' ? parseFloat(this.activePriceMax) : Infinity;
-                    res = res.filter(p => {
-                        const price = parseFloat(
-                            (p.special_price && parseFloat(p.special_price) < parseFloat(p.price))
-                                ? p.special_price : (p.price || 0)
-                        );
-                        return price >= lo && (hi === Infinity || price <= hi);
-                    });
-                }
-                if (this.sort === 'relevance') return res;
-                return [...res].sort((a, b) => {
-                    const getPrice = p => {
-                        const base = parseFloat(p.price) || 0;
-                        const sp = parseFloat(p.special_price) || 0;
-                        return (sp > 0 && sp < base) ? sp : base;
-                    };
-                    const diff = getPrice(a) - getPrice(b);
-                    return this.sort === 'price_asc' ? diff : -diff;
-                });
-            },
 
             async trackSearch(query, resultCount, responseTimeMs) {
                 if (!query || !this.analyticsUrl) return;
@@ -383,60 +233,11 @@ function ahySearchResults(productsApiUrl, searchToken, searchQuery, platformStor
                 window.location.search = params.toString();
             },
 
-            toggleFilter(key, label, value) {
-                const idx = this.activeFilters.findIndex(f => f.key === key && f.value === value);
-                if (idx >= 0) this.activeFilters.splice(idx, 1);
-                else this.activeFilters.push({ key, label, value });
-                this.page = 1;
-                this._writeUrl();
-                this._scrollToResults();
-                this.fetch();
-            },
 
-            removeFilter(key, value) {
-                this.activeFilters = this.activeFilters.filter(f => !(f.key === key && f.value === value));
-                this.page = 1;
-                this._writeUrl();
-                this._scrollToResults();
-                this.fetch();
-            },
 
-            applyPriceFilter() { this.page = 1; this._writeUrl(); this._scrollToResults(); this.fetch(); },
-            clearPriceFilter() { this.activePriceMin = ''; this.activePriceMax = ''; this.activePriceRange = null; this.page = 1; this._writeUrl(); this._scrollToResults(); this.fetch(); },
-            clearAllFilters() { this.activeFilters = []; this.activePriceMin = ''; this.activePriceMax = ''; this.activePriceRange = null; this.page = 1; this._writeUrl(); this._scrollToResults(); this.fetch(); },
 
-            priceRangeBuckets() {
-                if (this.priceRange.min === null) return [];
-                const rangeMax = this.priceRange.max !== null ? this.priceRange.max : Infinity;
-                const all = [
-                    { label: 'Under $50', min: '', max: 50 },
-                    { label: '$50 – $100', min: 50, max: 100 },
-                    { label: '$100 – $250', min: 100, max: 250 },
-                    { label: '$250 – $500', min: 250, max: 500 },
-                    { label: '$500 – $1,000', min: 500, max: 1000 },
-                    { label: 'Over $1,000', min: 1000, max: '' },
-                ];
-                return all.filter(b => {
-                    const lo = b.min === '' ? 0 : b.min;
-                    const hi = b.max === '' ? Infinity : b.max;
-                    return lo < rangeMax && hi > this.priceRange.min;
-                });
-            },
 
-            togglePriceRange(bucket) {
-                if (this.activePriceRange && this.activePriceRange.label === bucket.label) {
-                    this.activePriceRange = null;
-                    this.activePriceMin = '';
-                    this.activePriceMax = '';
-                } else {
-                    this.activePriceRange = bucket;
-                    this.activePriceMin = bucket.min === '' ? '' : String(bucket.min);
-                    this.activePriceMax = bucket.max === '' ? '' : String(bucket.max);
-                }
-                this.applyPriceFilter();
-            },
 
-                isFilterActive(key, value) { return this.activeFilters.some(f => f.key === key && f.value === value); },
             
               // Drives the scroll animation ourselves via requestAnimationFrame
               // instead of window.scrollTo({behavior:'smooth'}). Safari's native
@@ -471,25 +272,6 @@ function ahySearchResults(productsApiUrl, searchToken, searchQuery, platformStor
                 this._animateScrollTo(top);
             },
 
-            goToPage(p) {
-                this.page = p;
-                /* PlpRevamp's copy scrolls BEFORE fetch(), which reintroduces the bug
-                   described below. Keeping our ordering; only the URL write is shared. */
-                this._writeUrl();
-                // fetch() flips the main `loading` flag, which hides
-                // #search-results-layout and collapses the page height out from
-                // under the current (possibly deep) scroll position — scrolling
-                // to the filters top *before* or *during* that collapse just gets
-                // clamped back up near scrollY 0. The paginationLoading overlay
-                // covers the collapse/re-render visually, and we scroll only
-                // after fetch() resolves and the real layout has settled, so the
-                // target position is stable when we scroll to it.
-                this.paginationLoading = true;
-                this.fetch().then(() => {
-                    this.paginationLoading = false;
-                    this.$nextTick(() => this._scrollToResults());
-                });
-            },
             /*
              * Mirror the current view into the URL so it can be bookmarked, shared,
              * and restored by the back button. Adopted from Ahy_PlpRevamp, which
@@ -517,10 +299,6 @@ function ahySearchResults(productsApiUrl, searchToken, searchQuery, platformStor
                 window.history.replaceState(null, '', window.location.pathname + (qs ? '?' + qs : ''));
             },
 
-            setSort(val) { this.sort = val; this._writeUrl(); },
-            sortLabel() {
-                return { relevance: 'Relevance', price_asc: 'Low to High', price_desc: 'High to Low' }[this.sort] || 'Relevance';
-            },
             /* Was hardcoded to Everest's two seller names, so no other storefront
                could ever show a free-shipping badge. Now supplied per store — see
                web/js/plp/runtime.js. */
@@ -537,46 +315,8 @@ function ahySearchResults(productsApiUrl, searchToken, searchQuery, platformStor
 
             /* Was the Everest logo, which every other storefront would have shown
                for missing images. Empty default renders nothing instead. */
-            FALLBACK_IMG: ((window.FalcoSense && window.FalcoSense.config.fallbackImage) || ''),
-            imgUrl(image) {
-                if (!image || image.includes('no_selection')) return this.FALLBACK_IMG;
-                if (image.includes('falcosense/800x800')) return image;
-                let path = image;
-                if (image.startsWith('http')) {
-                    const m = image.match(/\/catalog\/product\/(.+)$/);
-                    if (!m) return image;
-                    path = m[1];
-                } else {
-                    path = path.replace(/^\/+/, '');
-                }
-                if (!path) return this.FALLBACK_IMG;
-                const filename = path.split('/').pop();
-                if (!filename) return this.FALLBACK_IMG;
-                const c1 = filename[0], c2 = filename[1] || c1;
-                var cdn = (window.FalcoSense && window.FalcoSense.config.cdnBase) || '';
-                return cdn + '/media/falcosense/800x800/' + c1 + '/' + c2 + '/' + filename;
-            },
             /* Compares the RESOLVED url. Taking the raw value meant a product whose
                image resolves to the fallback was not detected as such. */
-            isFallbackImg(image) {
-                return this.imgUrl(image) === this.FALLBACK_IMG;
-            },
-            handleImgError(event) {
-                const el = event.target;
-                if (el.dataset.imgFailed) {
-                    el.src = this.FALLBACK_IMG;
-                    el.style.opacity = '0.45';
-                    return;
-                }
-                el.dataset.imgFailed = '1';
-                const orig = el.getAttribute('data-original-src');
-                if (!orig || orig.includes('no_selection')) {
-                    el.src = this.FALLBACK_IMG;
-                    el.style.opacity = '0.45';
-                    return;
-                }
-                el.src = orig.startsWith('http') ? orig : '/media/catalog/product' + orig;
-            },
 
             async addSimpleToCart(product) {
                 const pid = product.product_id;
@@ -623,6 +363,66 @@ function ahySearchResults(productsApiUrl, searchToken, searchQuery, platformStor
                 } catch (e) { console.error('[SmartSearch] wishlist error', e); }
                 finally { this.wishLoading = { ...this.wishLoading, [pid]: false }; }
             },
-        };
+
+            /* ---- hooks into the shared engine ------------------------------ */
+
+            /** Query term, plus the two parameters only this surface sends. */
+            _applyQueryParams(url) {
+                url.searchParams.set('q', this.searchQuery);
+                if (this.customerGeoState) url.searchParams.set('geo_state', this.customerGeoState);
+                if (this.bypassSpell) url.searchParams.set('bypass_spell', '1');
+            },
+
+            /**
+             * Spelling-correction state, analytics, and the handoff to the
+             * overlay when there is genuinely nothing to show.
+             */
+            _afterFetch(data) {
+                if (data.was_corrected) {
+                    this.wasCorrection  = true;
+                    this.correctedQuery = data.corrected_query;
+                    this.originalQuery  = data.original_query || this.searchQuery;
+                } else if (!this.wasCorrection) {
+                    this.wasCorrection  = false;
+                    this.correctedQuery = '';
+                    this.originalQuery  = '';
+                }
+                this.suggestedQuery = data.suggested_query || '';
+
+                this.trackSearch(this.searchQuery, this.total, this.lastFetchMs);
+
+                if (this.results.length === 0 && !this.activeFilters.length
+                    && this.activePriceMin === '' && this.activePriceMax === '') {
+                    /*
+                     * Deliberate handoff: this page has nothing to show, so the
+                     * overlay takes over with popular products. `force` marks it
+                     * intentional — the overlay otherwise refuses to open over a
+                     * page that is already showing a listing.
+                     */
+                    window.dispatchEvent(new CustomEvent('ahy-modal-search', {
+                        detail: { query: this.searchQuery, force: true }
+                    }));
+                }
+            },
+
+            /**
+             * A brand named in the URL can only be applied once the platform has
+             * answered and the brand appears as a facet — there is nothing to
+             * match it against before that.
+             */
+            _afterBuildFilters() {
+                if (!this.autoBrand || this.activeFilters.some(f => f.key === 'brand')) return;
+                const brandFilter = this.filters.find(f => f.key === 'brand');
+                if (!brandFilter) return;
+                const match = brandFilter.options.find(
+                    o => o.value.toLowerCase() === this.autoBrand.toLowerCase()
+                );
+                if (!match) return;
+                this.activeFilters.push({ key: 'brand', label: 'Shop By Brand', value: match.value });
+                this.autoBrand = '';
+                this.page = 1;
+                this.fetch();
+            },
+        });
     }
 })(window);

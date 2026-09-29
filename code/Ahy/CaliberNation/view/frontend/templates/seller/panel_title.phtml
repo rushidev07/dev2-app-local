@@ -1,0 +1,23 @@
+<?php
+/**
+ * Copyright © Ahy consulting All rights reserved.
+ * See COPYING.txt for license details.
+ *
+ * Minimal seller-panel title block.
+ * Used by seller.page.main.title so Webkul's CSS selector
+ * (.wk-mp-page-header-hgroup > .page-title-wrapper > h1) applies correctly
+ * instead of the Everest2 Tailwind-heavy title.phtml override.
+ *
+ * @var \Magento\Theme\Block\Html\Title $block
+ * @var \Magento\Framework\Escaper $escaper
+ */
+$heading = $block->getPageHeading();
+if (!$heading) {
+    return;
+}
+?>
+<div class="page-title-wrapper">
+    <h1 class="page-title">
+        <span><?= $escaper->escapeHtml($heading) ?></span>
+    </h1>
+</div>

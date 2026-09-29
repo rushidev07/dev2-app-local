@@ -43,28 +43,7 @@
         <referenceContainer name="header.container">
             <block class="FalcoSense\Search\Block\HeaderSearchForm"
                    name="falcosense_header_search"
-                   template="FalcoSense_Search::html/header/search-form.phtml">
-                <block class="Magento\Framework\View\Element\Template"
-                       name="falcosense_header_filters_desktop"
-                       as="header_filters_desktop"
-                       template="FalcoSense_Search::html/header/filters-desktop.phtml"/>
-                <block class="Magento\Framework\View\Element\Template"
-                       name="falcosense_header_filters_mobile"
-                       as="header_filters_mobile"
-                       template="FalcoSense_Search::html/header/filters-mobile.phtml"/>
-                <block class="Magento\Framework\View\Element\Template"
-                       name="falcosense_header_zero_results"
-                       as="header_zero_results"
-                       template="FalcoSense_Search::html/header/zero-results.phtml"/>
-                <block class="FalcoSense\Search\Block\ProductCard"
-                       name="falcosense_header_product_card_desktop"
-                       as="header_product_card_desktop"
-                       template="FalcoSense_Search::html/header/product-card-desktop.phtml"/>
-                <block class="FalcoSense\Search\Block\ProductCard"
-                       name="falcosense_header_product_card_mobile"
-                       as="header_product_card_mobile"
-                       template="FalcoSense_Search::html/header/product-card-mobile.phtml"/>
-            </block>
+                   template="FalcoSense_Search::html/header/search-form.phtml"/>
         </referenceContainer>
     </body>
 </page>

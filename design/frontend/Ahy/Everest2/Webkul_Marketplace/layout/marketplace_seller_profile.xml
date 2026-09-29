@@ -10,7 +10,7 @@
 						<argument name="view_model" xsi:type="object">Webkul\Marketplace\ViewModel\HelperViewModel</argument>
 					</arguments> -->
         </block>
-        <block class="Webkul\Marketplace\Block\Profile" name="marketplace_sellerprofile_layout_ahy" template="Webkul_Marketplace::seller/profile/profile_ahy.phtml" after="-">
+        <block class="Webkul\Marketplace\Block\Profile" name="marketplace_sellerprofile_layout_ahy" template="Ahy_PlpRevamp::seller/profile/profile_ahy.phtml" after="-">
             <arguments>
                 <argument name="view_model" xsi:type="object">Webkul\Marketplace\ViewModel\HelperViewModel</argument>
             </arguments>

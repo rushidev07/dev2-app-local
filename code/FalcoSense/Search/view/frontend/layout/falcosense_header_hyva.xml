@@ -24,21 +24,45 @@
         -->
         <referenceBlock name="header-search"
                         class="FalcoSense\Search\Block\HeaderSearchForm"
-                        template="FalcoSense_Search::html/header/search-form.phtml">
+                        template="FalcoSense_Search::html/header/search-form.phtml"/>
+
+        <!--
+            The overlay is NOT a child of this block any more. A responsive theme
+            mounts the input more than once (Everest's header.phtml calls it three
+            times), and the overlay was being emitted once per call — three
+            elements sharing id="ahyModal". It is declared once in default.xml's
+            before.body.end instead, and the filter/card/zero-result blocks moved
+            with it because that is the template which renders them.
+        -->
+
+
+        <!--
+            Backward compatibility for a theme that overrides
+            html/header/search-form.phtml with a copy from before the overlay was
+            split out. Everest's theme does exactly that, and its copy renders the
+            overlay inline and asks this block for these five children.
+
+            Declared with `as` aliases matching the names its template calls, and
+            with distinct block names so they do not collide with the real ones
+            under falcosense_search_overlay. A declared child costs nothing until
+            a template asks for it, so on a storefront using OUR search-form.phtml
+            — which no longer calls them — these render nothing at all.
+        -->
+        <referenceBlock name="header-search">
             <block class="Magento\Framework\View\Element\Template"
-                   name="header_filters_desktop"
+                   name="header_search_bc_filters_desktop" as="header_filters_desktop"
                    template="FalcoSense_Search::html/header/filters-desktop.phtml"/>
             <block class="Magento\Framework\View\Element\Template"
-                   name="header_filters_mobile"
+                   name="header_search_bc_filters_mobile" as="header_filters_mobile"
                    template="FalcoSense_Search::html/header/filters-mobile.phtml"/>
             <block class="Magento\Framework\View\Element\Template"
-                   name="header_zero_results"
+                   name="header_search_bc_zero_results" as="header_zero_results"
                    template="FalcoSense_Search::html/header/zero-results.phtml"/>
             <block class="FalcoSense\Search\Block\ProductCard"
-                   name="header_product_card_desktop"
+                   name="header_search_bc_card_desktop" as="header_product_card_desktop"
                    template="FalcoSense_Search::html/header/product-card-desktop.phtml"/>
             <block class="FalcoSense\Search\Block\ProductCard"
-                   name="header_product_card_mobile"
+                   name="header_search_bc_card_mobile" as="header_product_card_mobile"
                    template="FalcoSense_Search::html/header/product-card-mobile.phtml"/>
         </referenceBlock>
     </body>
